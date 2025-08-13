@@ -31,8 +31,8 @@ func (h *MetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	requestUrl := strings.TrimPrefix(r.URL.Path, "/")
-	parts := strings.Split(requestUrl, "/")
+	requestURL := strings.TrimPrefix(r.URL.Path, "/")
+	parts := strings.Split(requestURL, "/")
 	log.Printf("Path parts: %v (length: %d)", parts, len(parts))
 	if len(parts) < 3 || parts[0] != "update" {
 		http.Error(w, "Not found", http.StatusNotFound)
@@ -101,19 +101,21 @@ func (h *DebugHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 
 	if len(metrics) == 0 {
-		fmt.Fprintln(w, "No metrics stored yet")
+		if _, err := fmt.Fprintln(w, "No metrics stored yet"); err != nil {
+			log.Printf("failed to write response: %v", err)
+		}
 		return
 	}
 
 	for _, metric := range metrics {
 		switch metric.MType {
 		case models.Gauge:
-			if metric.Value != nil {
-				fmt.Fprintf(w, "%s (gauge): %v\n", metric.ID, *metric.Value)
+			if _, err := fmt.Fprintf(w, "%s (gauge): %v\n", metric.ID, *metric.Value); err != nil {
+				log.Printf("failed to write response: %v", err)
 			}
 		case models.Counter:
-			if metric.Delta != nil {
-				fmt.Fprintf(w, "%s (counter): %v\n", metric.ID, *metric.Delta)
+			if _, err := fmt.Fprintf(w, "%s (counter): %v\n", metric.ID, *metric.Delta); err != nil {
+				log.Printf("failed to write response: %v", err)
 			}
 		}
 	}
