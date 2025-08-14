@@ -15,7 +15,7 @@ func main() {
 	storage := repository.NewMemStorage()
 	metricCollector := agent.NewMetricCollector(2*time.Second, storage)
 	metricCollector.Start()
-
+	time.Sleep(2 * time.Second)
 	metricSender := agent.NewSender("http://localhost:8080", 10*time.Second, metricCollector)
 	metricSender.Start()
 

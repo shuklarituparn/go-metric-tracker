@@ -11,10 +11,10 @@ import (
 )
 
 type Sender struct {
-	client           *http.Client
-	serverAddress    string
-	reportInterval   time.Duration
-	metric_collector *MetricCollector
+	client          *http.Client
+	serverAddress   string
+	reportInterval  time.Duration
+	metricCollector *MetricCollector
 }
 
 func NewSender(serverAddress string, reportInterval time.Duration, collector *MetricCollector) *Sender {
@@ -22,9 +22,9 @@ func NewSender(serverAddress string, reportInterval time.Duration, collector *Me
 		client: &http.Client{
 			Timeout: 20 * time.Second,
 		},
-		serverAddress:    serverAddress,
-		reportInterval:   reportInterval,
-		metric_collector: collector,
+		serverAddress:   serverAddress,
+		reportInterval:  reportInterval,
+		metricCollector: collector,
 	}
 }
 
