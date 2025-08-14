@@ -220,5 +220,3 @@ func TestMetricsHandler_GaugeOverwrite(t *testing.T) {
 		t.Errorf("Expected gauge value 30.5 after overwrite, got %v", v)
 	}
 }
-
-
