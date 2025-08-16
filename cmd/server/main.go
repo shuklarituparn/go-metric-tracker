@@ -38,6 +38,8 @@ func main() {
 	
 	router.POST("/update/:type/:name/:value", metricsHandler.UpdateMetric)
 	
+	router.GET("/value/:type/:name", metricsHandler.GetMetric)
+	
 	router.POST("/update/:type/:name/", func(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 	})
@@ -64,8 +66,8 @@ func main() {
 	addr := "localhost:8080"
 	log.Printf("Starting metrics server on %s", addr)
 	log.Printf("Update metrics: POST http://%s/update/<type>/<name>/<value>", addr)
-	log.Printf("View metrics: GET http://%s/debug", addr)
-	log.Printf("Health check: GET http://%s/health", addr)
+	log.Printf("Get metric value: GET http://%s/value/<type>/<name>", addr)
+	log.Printf("View all metrics: GET http://%s/debug", addr)
 	
 	if err := router.Run(addr); err != nil {
 		log.Fatalf("Failed to start server: %v", err)

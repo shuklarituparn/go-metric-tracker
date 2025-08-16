@@ -35,6 +35,8 @@ func setupTestRouter(storage *repository.MemStorage) *gin.Engine {
 	
 	router.POST("/update/:type/:name/:value", handler.UpdateMetric)
 	
+	router.GET("/value/:type/:name", handler.GetMetric)
+	
 	router.POST("/update/:type/:name/", func(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 	})
@@ -206,6 +208,72 @@ func TestMetricsHandler_UpdateMetric(t *testing.T) {
 	}
 }
 
+func TestMetricsHandler_GetMetric(t *testing.T) {
+	tests := []struct {
+		name           string
+		setupMetrics   func(storage *repository.MemStorage)
+		url            string
+		expectedStatus int
+		expectedBody   string
+	}{
+		{
+			name: "Get existing gauge metric",
+			setupMetrics: func(storage *repository.MemStorage) {
+				storage.UpdateGauge("temperature", 25.5)
+			},
+			url:            "/value/gauge/temperature",
+			expectedStatus: http.StatusOK,
+			expectedBody:   "25.5",
+		},
+		{
+			name: "Get existing counter metric",
+			setupMetrics: func(storage *repository.MemStorage) {
+				storage.UpdateCounter("requests", 100)
+			},
+			url:            "/value/counter/requests",
+			expectedStatus: http.StatusOK,
+			expectedBody:   "100",
+		},
+		{
+			name:           "Get non-existing gauge metric",
+			setupMetrics:   func(storage *repository.MemStorage) {},
+			url:            "/value/gauge/nonexistent",
+			expectedStatus: http.StatusNotFound,
+			expectedBody:   "Metric not found",
+		},
+		{
+			name:           "Get non-existing counter metric",
+			setupMetrics:   func(storage *repository.MemStorage) {},
+			url:            "/value/counter/nonexistent",
+			expectedStatus: http.StatusNotFound,
+			expectedBody:   "Metric not found",
+		},
+		{
+			name:           "Invalid metric type",
+			setupMetrics:   func(storage *repository.MemStorage) {},
+			url:            "/value/invalid/test",
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "Invalid metric type",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			storage := repository.NewMemStorage()
+			test.setupMetrics(storage)
+			router := setupTestRouter(storage)
+
+			req := httptest.NewRequest(http.MethodGet, test.url, nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, test.expectedStatus, w.Code, "Status code mismatch")
+			assert.Equal(t, test.expectedBody, w.Body.String(), "Response body mismatch")
+		})
+	}
+}
+
 func TestMetricsHandler_CounterAccumulation(t *testing.T) {
 	storage := repository.NewMemStorage()
 	router := setupTestRouter(storage)
@@ -219,6 +287,12 @@ func TestMetricsHandler_CounterAccumulation(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, int64(10), v, "Expected counter value 10")
 
+	reqGet1 := httptest.NewRequest(http.MethodGet, "/value/counter/visits", nil)
+	wGet1 := httptest.NewRecorder()
+	router.ServeHTTP(wGet1, reqGet1)
+	assert.Equal(t, http.StatusOK, wGet1.Code)
+	assert.Equal(t, "10", wGet1.Body.String())
+
 	req2 := httptest.NewRequest(http.MethodPost, "/update/counter/visits/25", nil)
 	w2 := httptest.NewRecorder()
 	router.ServeHTTP(w2, req2)
@@ -228,6 +302,12 @@ func TestMetricsHandler_CounterAccumulation(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, int64(35), v, "Expected counter value 35 after accumulation")
 
+	reqGet2 := httptest.NewRequest(http.MethodGet, "/value/counter/visits", nil)
+	wGet2 := httptest.NewRecorder()
+	router.ServeHTTP(wGet2, reqGet2)
+	assert.Equal(t, http.StatusOK, wGet2.Code)
+	assert.Equal(t, "35", wGet2.Body.String())
+
 	req3 := httptest.NewRequest(http.MethodPost, "/update/counter/visits/5", nil)
 	w3 := httptest.NewRecorder()
 	router.ServeHTTP(w3, req3)
@@ -236,6 +316,12 @@ func TestMetricsHandler_CounterAccumulation(t *testing.T) {
 	v, ok = storage.GetCounter("visits")
 	assert.True(t, ok)
 	assert.Equal(t, int64(40), v, "Expected counter value 40 after accumulation")
+
+	reqGet3 := httptest.NewRequest(http.MethodGet, "/value/counter/visits", nil)
+	wGet3 := httptest.NewRecorder()
+	router.ServeHTTP(wGet3, reqGet3)
+	assert.Equal(t, http.StatusOK, wGet3.Code)
+	assert.Equal(t, "40", wGet3.Body.String())
 }
 
 func TestMetricsHandler_GaugeOverwrite(t *testing.T) {
@@ -251,6 +337,12 @@ func TestMetricsHandler_GaugeOverwrite(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, 20.5, v, "Expected gauge value 20.5")
 
+	reqGet1 := httptest.NewRequest(http.MethodGet, "/value/gauge/temp", nil)
+	wGet1 := httptest.NewRecorder()
+	router.ServeHTTP(wGet1, reqGet1)
+	assert.Equal(t, http.StatusOK, wGet1.Code)
+	assert.Equal(t, "20.5", wGet1.Body.String())
+
 	req2 := httptest.NewRequest(http.MethodPost, "/update/gauge/temp/30.5", nil)
 	w2 := httptest.NewRecorder()
 	router.ServeHTTP(w2, req2)
@@ -259,4 +351,10 @@ func TestMetricsHandler_GaugeOverwrite(t *testing.T) {
 	v, ok = storage.GetGauge("temp")
 	assert.True(t, ok)
 	assert.Equal(t, 30.5, v, "Expected gauge value 30.5 after overwrite")
+
+	reqGet2 := httptest.NewRequest(http.MethodGet, "/value/gauge/temp", nil)
+	wGet2 := httptest.NewRecorder()
+	router.ServeHTTP(wGet2, reqGet2)
+	assert.Equal(t, http.StatusOK, wGet2.Code)
+	assert.Equal(t, "30.5", wGet2.Body.String())
 }
