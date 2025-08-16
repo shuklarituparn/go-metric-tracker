@@ -27,7 +27,7 @@ func NewMetricHandler(storage repository.Storage) *MetricsHandler {
 func (h *MetricsHandler) UpdateMetric(c *gin.Context) {
 	metricType:= c.Param("type")
 	metricName:=c.Param("name")
-	metricValue:= c.Param("metricValue")
+	metricValue:= c.Param("value")
 
 	log.Printf("Received request: %s %s",c.Request.Method , c.Request.URL.Path)
 	log.Printf("Path params: type=%s, name=%s, value=%s", metricType, metricName, metricValue)
