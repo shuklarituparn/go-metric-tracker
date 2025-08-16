@@ -17,7 +17,7 @@ func main() {
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
 
-	router.POST("/update/:type/:name/:value", metricsHandler.UpdateMetric)
+	router.POST("/update/:type/:name/:value/", metricsHandler.UpdateMetric)
 	router.GET("/debug",debugHandler.DebugHandler )
 
 
