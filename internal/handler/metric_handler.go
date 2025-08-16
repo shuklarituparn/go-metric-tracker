@@ -5,8 +5,8 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 
+	"github.com/gin-gonic/gin"
 	models "github.com/shuklarituparn/go-metric-tracker/internal/model"
 	"github.com/shuklarituparn/go-metric-tracker/internal/repository"
 )
@@ -24,62 +24,49 @@ func NewMetricHandler(storage repository.Storage) *MetricsHandler {
 	}
 }
 
-func (h *MetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Printf("Received request: %s %s", r.Method, r.URL.Path)
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func (h *MetricsHandler) UpdateMetric(c *gin.Context) {
+	metricType:= c.Param("type")
+	metricName:=c.Param("name")
+	metricValue:= c.Param("metricValue")
 
-	requestURL := strings.TrimPrefix(r.URL.Path, "/")
-	parts := strings.Split(requestURL, "/")
-	log.Printf("Path parts: %v (length: %d)", parts, len(parts))
-	if len(parts) < 3 || parts[0] != "update" {
-		http.Error(w, "Not found", http.StatusNotFound)
-		return
-	}
-	if len(parts) < 3 || parts[2] == "" {
-		http.Error(w, "Metric name required", http.StatusNotFound)
-		return
-	}
-	if len(parts) < 4 {
-		http.Error(w, "Bad request", http.StatusBadRequest)
-		return
-	}
+	log.Printf("Received request: %s %s",c.Request.Method , c.Request.URL.Path)
+	log.Printf("Path params: type=%s, name=%s, value=%s", metricType, metricName, metricValue)
+	if metricName == "" {
+        c.String(http.StatusNotFound, "Metric name required")
+        return
+    }
+    if metricValue == "" {
+        c.String(http.StatusBadRequest, "Metric value required")
+        return
+    }
 
-	typeOfMetric := parts[1]
-	metricName := parts[2]
-	valueMetric := parts[3]
-
-	switch typeOfMetric {
+	switch metricType {
 	case models.Gauge:
-		value, err := strconv.ParseFloat(valueMetric, 64)
+		value, err := strconv.ParseFloat(metricValue, 64)
 		if err != nil {
-			http.Error(w, "Invalid gauge value", http.StatusBadRequest)
+			c.String(http.StatusBadRequest, "Invalid gauge value")
 			return
 		}
 
 		if err := h.storage.UpdateGauge(metricName, value); err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			c.String(http.StatusInternalServerError, "Internal server error")
 			return
 		}
-		w.Header().Set("Content-type", "text/plain")
-		w.WriteHeader(http.StatusOK)
-	case models.Counter:
-		value, err := strconv.ParseInt(valueMetric, 10, 64)
+		c.String(http.StatusOK,"")
+		case models.Counter:
+		value, err := strconv.ParseInt(metricValue, 10, 64)
 		if err != nil {
-			http.Error(w, "Invalid counter value", http.StatusBadRequest)
+			c.String(http.StatusBadRequest, "Invalid counter value")
 			return
 		}
 
 		if err := h.storage.UpdateCounter(metricName, value); err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			c.String(http.StatusInternalServerError,"Internal server error")
 			return
 		}
-		w.Header().Set("Content-type", "text/plain")
-		w.WriteHeader(http.StatusOK)
+		c.String(http.StatusOK,"")
 	default:
-		http.Error(w, "Invalid metric type", http.StatusBadRequest)
+		c.String(http.StatusBadRequest, "Invalid metric type")
 		return
 	}
 
@@ -91,32 +78,25 @@ func NewDebugHandler(storage repository.Storage) *DebugHandler {
 	}
 }
 
-func (h *DebugHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func (h *DebugHandler) DebugHandler(c *gin.Context) {
+	
 
 	metrics := h.storage.GetAllMetrics()
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	
 
 	if len(metrics) == 0 {
-		if _, err := fmt.Fprintln(w, "No metrics stored yet"); err != nil {
-			log.Printf("failed to write response: %v", err)
-		}
+		c.String(http.StatusNoContent, "No metrics stored")
 		return
 	}
 
 	for _, metric := range metrics {
 		switch metric.MType {
 		case models.Gauge:
-			if _, err := fmt.Fprintf(w, "%s (gauge): %v\n", metric.ID, *metric.Value); err != nil {
-				log.Printf("failed to write response: %v", err)
-			}
+			output:=fmt.Sprintf("%s (gauge): %v\n", metric.ID, *metric.Value)
+			c.String(http.StatusOK, output)
 		case models.Counter:
-			if _, err := fmt.Fprintf(w, "%s (counter): %v\n", metric.ID, *metric.Delta); err != nil {
-				log.Printf("failed to write response: %v", err)
-			}
+			output:=fmt.Sprintf("%s (counter): %v\n", metric.ID, *metric.Delta)
+			c.String(http.StatusOK, output)
 		}
 	}
 }

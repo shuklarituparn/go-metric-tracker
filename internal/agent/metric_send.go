@@ -18,7 +18,7 @@ type Sender struct {
 
 func NewSender(serverAddress string, reportInterval time.Duration, collector *MetricCollector) *Sender {
 	return &Sender{
-		client: &http.Client{},
+		client:          &http.Client{},
 		serverAddress:   serverAddress,
 		reportInterval:  reportInterval,
 		metricCollector: collector,
