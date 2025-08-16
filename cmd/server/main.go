@@ -2,6 +2,8 @@ package main
 
 import (
 	"log"
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"github.com/shuklarituparn/go-metric-tracker/internal/handler"
 	"github.com/shuklarituparn/go-metric-tracker/internal/repository"
@@ -16,8 +18,12 @@ func main() {
 	router:= gin.Default()
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
+	router.NoMethod(func(c *gin.Context) {
+    c.String(http.StatusMethodNotAllowed, "")
+})
 
-	router.POST("/update/:type/:name/:value/", metricsHandler.UpdateMetric)
+
+	router.POST("/update/:type/:name/:value", metricsHandler.UpdateMetric)
 	router.GET("/debug",debugHandler.DebugHandler )
 
 
