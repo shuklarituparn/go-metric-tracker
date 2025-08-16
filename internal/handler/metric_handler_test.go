@@ -1,22 +1,60 @@
+// internal/handler/metric_handler_test.go
 package handler
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"github.com/stretchr/testify/assert"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shuklarituparn/go-metric-tracker/internal/repository"
+	"github.com/stretchr/testify/assert"
 )
 
-func setupTestRouter(storage *repository.MemStorage) *gin.Engine{
+func setupTestRouter(storage *repository.MemStorage) *gin.Engine {
 	gin.SetMode(gin.TestMode)
-	router:= gin.New()
-	handler:= NewMetricHandler(storage)
+	router := gin.New()
+	
+	router.RedirectTrailingSlash = false
+	router.RedirectFixedPath = false
+	
+	handler := NewMetricHandler(storage)
+	
+	router.Use(func(c *gin.Context) {
+		c.Next()
+		
+		if c.Writer.Status() == http.StatusNotFound {
+			if c.Request.Method != "POST" && 
+			   (c.Request.URL.Path == "/update/" || 
+			    len(c.Request.URL.Path) > 8 && c.Request.URL.Path[:8] == "/update/") {
+				c.AbortWithStatus(http.StatusMethodNotAllowed)
+				return
+			}
+		}
+	})
+	
 	router.POST("/update/:type/:name/:value", handler.UpdateMetric)
+	
+	router.POST("/update/:type/:name/", func(c *gin.Context) {
+		c.AbortWithStatus(http.StatusBadRequest)
+	})
+	
+	router.GET("/update/*path", func(c *gin.Context) {
+		c.AbortWithStatus(http.StatusMethodNotAllowed)
+	})
+	router.PUT("/update/*path", func(c *gin.Context) {
+		c.AbortWithStatus(http.StatusMethodNotAllowed)
+	})
+	router.DELETE("/update/*path", func(c *gin.Context) {
+		c.AbortWithStatus(http.StatusMethodNotAllowed)
+	})
+	router.PATCH("/update/*path", func(c *gin.Context) {
+		c.AbortWithStatus(http.StatusMethodNotAllowed)
+	})
+	
 	return router
 }
+
 func TestMetricsHandler_UpdateMetric(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -106,7 +144,7 @@ func TestMetricsHandler_UpdateMetric(t *testing.T) {
 			name:           "Missing metric value",
 			method:         http.MethodPost,
 			url:            "/update/gauge/temperature/",
-			expectedStatus: http.StatusNotFound,
+			expectedStatus: http.StatusBadRequest,
 			checkValue: func(storage *repository.MemStorage) bool {
 				return true
 			},
@@ -167,6 +205,7 @@ func TestMetricsHandler_UpdateMetric(t *testing.T) {
 		})
 	}
 }
+
 func TestMetricsHandler_CounterAccumulation(t *testing.T) {
 	storage := repository.NewMemStorage()
 	router := setupTestRouter(storage)
@@ -221,4 +260,3 @@ func TestMetricsHandler_GaugeOverwrite(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, 30.5, v, "Expected gauge value 30.5 after overwrite")
 }
-

@@ -10,28 +10,63 @@ import (
 )
 
 func main() {
-
 	storage := repository.NewMemStorage()
+	
 	metricsHandler := handler.NewMetricHandler(storage)
 	debugHandler := handler.NewDebugHandler(storage)
-
-	router:= gin.Default()
+	
+	router := gin.Default()
+	
+	router.RedirectTrailingSlash = false
+	router.RedirectFixedPath = false
+	
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
-	router.NoMethod(func(c *gin.Context) {
-    c.String(http.StatusMethodNotAllowed, "")
-})
-
-
+	
+	router.Use(func(c *gin.Context) {
+		c.Next()
+		
+		if c.Writer.Status() == http.StatusNotFound {
+			if c.Request.Method != "POST" && 
+			   (c.Request.URL.Path == "/update/" || 
+			    len(c.Request.URL.Path) > 8 && c.Request.URL.Path[:8] == "/update/") {
+				c.AbortWithStatus(http.StatusMethodNotAllowed)
+				return
+			}
+		}
+	})
+	
 	router.POST("/update/:type/:name/:value", metricsHandler.UpdateMetric)
-	router.GET("/debug",debugHandler.DebugHandler )
-
-
+	
+	router.POST("/update/:type/:name/", func(c *gin.Context) {
+		c.AbortWithStatus(http.StatusBadRequest)
+	})
+	
+	router.GET("/update/*path", func(c *gin.Context) {
+		c.AbortWithStatus(http.StatusMethodNotAllowed)
+	})
+	router.PUT("/update/*path", func(c *gin.Context) {
+		c.AbortWithStatus(http.StatusMethodNotAllowed)
+	})
+	router.DELETE("/update/*path", func(c *gin.Context) {
+		c.AbortWithStatus(http.StatusMethodNotAllowed)
+	})
+	router.PATCH("/update/*path", func(c *gin.Context) {
+		c.AbortWithStatus(http.StatusMethodNotAllowed)
+	})
+	
+	router.GET("/debug", debugHandler.DebugHandler)
+	
+	router.NoRoute(func(c *gin.Context) {
+		c.AbortWithStatus(http.StatusNotFound)
+	})
+	
 	addr := "localhost:8080"
 	log.Printf("Starting metrics server on %s", addr)
 	log.Printf("Update metrics: POST http://%s/update/<type>/<name>/<value>", addr)
 	log.Printf("View metrics: GET http://%s/debug", addr)
-
+	log.Printf("Health check: GET http://%s/health", addr)
+	
 	if err := router.Run(addr); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
