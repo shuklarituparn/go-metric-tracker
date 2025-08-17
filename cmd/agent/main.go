@@ -18,11 +18,13 @@ func main() {
 	reportInterval:= flag.Duration("r",10*time.Second, "report interval" )
 	pollInterval:=flag.Duration("p",2*time.Second, "poll interval" )
 	flag.Parse()
+	fullendpoint:= "http://"+*endpoint	
 
 	metricCollector := agent.NewMetricCollector(*pollInterval, storage)
 	metricCollector.Start()
 	time.Sleep(2 * time.Second)
-	metricSender := agent.NewSender(*endpoint, *reportInterval, metricCollector)
+	
+	metricSender := agent.NewSender(fullendpoint, *reportInterval, metricCollector)
 	metricSender.Start()
 
 	sig := make(chan os.Signal, 1)

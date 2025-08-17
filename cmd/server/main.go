@@ -66,9 +66,10 @@ func main() {
 	endpoint:= flag.String("a","localhost:8080", "endpoint address")
 	flag.Parse()
 
+	fullendpoint:= "http://"+*endpoint	
 	log.Printf("Starting metrics server on %s", *endpoint)
-	log.Printf("Update metrics: POST http://%s/update/<type>/<name>/<value>", *endpoint)
-	log.Printf("Get metric value: GET http://%s/value/<type>/<name>", *endpoint)
+	log.Printf("Update metrics: POST http://%s/update/<type>/<name>/<value>", fullendpoint)
+	log.Printf("Get metric value: GET http://%s/value/<type>/<name>", fullendpoint)
 	log.Printf("View all metrics: GET http://%s/debug", *endpoint)
 	
 	if err := router.Run(*endpoint); err != nil {
