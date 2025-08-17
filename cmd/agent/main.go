@@ -16,7 +16,7 @@ func main() {
 	storage := repository.NewMemStorage()
 	endpoint:= flag.String("a","localhost:8080", "endpoint address")
 	reportInterval:= flag.Duration("r",10*time.Second, "report interval" )
-	pollInterval:=flag.Duration("r",2*time.Second, "poll interval" )
+	pollInterval:=flag.Duration("p",2*time.Second, "poll interval" )
 	flag.Parse()
 
 	metricCollector := agent.NewMetricCollector(*pollInterval, storage)
