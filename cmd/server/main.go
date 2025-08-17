@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"net/http"
 
@@ -62,14 +63,15 @@ func main() {
 	router.NoRoute(func(c *gin.Context) {
 		c.AbortWithStatus(http.StatusNotFound)
 	})
+	endpoint:= flag.String("a","http://localhost:8080", "endpoint address")
+	flag.Parse()
+
+	log.Printf("Starting metrics server on %s", *endpoint)
+	log.Printf("Update metrics: POST http://%s/update/<type>/<name>/<value>", *endpoint)
+	log.Printf("Get metric value: GET http://%s/value/<type>/<name>", *endpoint)
+	log.Printf("View all metrics: GET http://%s/debug", *endpoint)
 	
-	addr := "localhost:8080"
-	log.Printf("Starting metrics server on %s", addr)
-	log.Printf("Update metrics: POST http://%s/update/<type>/<name>/<value>", addr)
-	log.Printf("Get metric value: GET http://%s/value/<type>/<name>", addr)
-	log.Printf("View all metrics: GET http://%s/debug", addr)
-	
-	if err := router.Run(addr); err != nil {
+	if err := router.Run(*endpoint); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }

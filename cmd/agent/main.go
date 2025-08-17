@@ -1,22 +1,28 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
-	
+
 	"github.com/shuklarituparn/go-metric-tracker/internal/agent"
 	"github.com/shuklarituparn/go-metric-tracker/internal/repository"
 )
 
 func main() {
 	storage := repository.NewMemStorage()
-	metricCollector := agent.NewMetricCollector(2*time.Second, storage)
+	endpoint:= flag.String("a","http://localhost:8080", "endpoint address")
+	reportInterval:= flag.Duration("r",10*time.Second, "report interval" )
+	pollInterval:=flag.Duration("r",2*time.Second, "poll interval" )
+	flag.Parse()
+
+	metricCollector := agent.NewMetricCollector(*pollInterval, storage)
 	metricCollector.Start()
 	time.Sleep(2 * time.Second)
-	metricSender := agent.NewSender("http://localhost:8080", 10*time.Second, metricCollector)
+	metricSender := agent.NewSender(*endpoint, *reportInterval, metricCollector)
 	metricSender.Start()
 
 	sig := make(chan os.Signal, 1)
