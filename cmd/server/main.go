@@ -12,39 +12,39 @@ import (
 
 func main() {
 	storage := repository.NewMemStorage()
-	
+
 	metricsHandler := handler.NewMetricHandler(storage)
 	debugHandler := handler.NewDebugHandler(storage)
-	
+
 	router := gin.Default()
-	
+
 	router.RedirectTrailingSlash = false
 	router.RedirectFixedPath = false
-	
+
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
-	
+
 	router.Use(func(c *gin.Context) {
 		c.Next()
-		
+
 		if c.Writer.Status() == http.StatusNotFound {
-			if c.Request.Method != "POST" && 
-			   (c.Request.URL.Path == "/update/" || 
-			    len(c.Request.URL.Path) > 8 && c.Request.URL.Path[:8] == "/update/") {
+			if c.Request.Method != "POST" &&
+				(c.Request.URL.Path == "/update/" ||
+					len(c.Request.URL.Path) > 8 && c.Request.URL.Path[:8] == "/update/") {
 				c.AbortWithStatus(http.StatusMethodNotAllowed)
 				return
 			}
 		}
 	})
-	
+
 	router.POST("/update/:type/:name/:value", metricsHandler.UpdateMetric)
-	
+
 	router.GET("/value/:type/:name", metricsHandler.GetMetric)
-	
+
 	router.POST("/update/:type/:name/", func(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 	})
-	
+
 	router.GET("/update/*path", func(c *gin.Context) {
 		c.AbortWithStatus(http.StatusMethodNotAllowed)
 	})
@@ -57,21 +57,21 @@ func main() {
 	router.PATCH("/update/*path", func(c *gin.Context) {
 		c.AbortWithStatus(http.StatusMethodNotAllowed)
 	})
-	
+
 	router.GET("/debug", debugHandler.DebugHandler)
-	
+
 	router.NoRoute(func(c *gin.Context) {
 		c.AbortWithStatus(http.StatusNotFound)
 	})
-	endpoint:= flag.String("a","localhost:8080", "endpoint address")
+	endpoint := flag.String("a", "localhost:8080", "endpoint address")
 	flag.Parse()
 
-	fullendpoint:= "http://"+*endpoint	
+	fullendpoint := "http://" + *endpoint
 	log.Printf("Starting metrics server on %s", *endpoint)
 	log.Printf("Update metrics: POST http://%s/update/<type>/<name>/<value>", fullendpoint)
 	log.Printf("Get metric value: GET http://%s/value/<type>/<name>", fullendpoint)
 	log.Printf("View all metrics: GET http://%s/debug", *endpoint)
-	
+
 	if err := router.Run(*endpoint); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}

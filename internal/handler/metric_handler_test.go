@@ -14,33 +14,33 @@ import (
 func setupTestRouter(storage *repository.MemStorage) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	
+
 	router.RedirectTrailingSlash = false
 	router.RedirectFixedPath = false
-	
+
 	handler := NewMetricHandler(storage)
-	
+
 	router.Use(func(c *gin.Context) {
 		c.Next()
-		
+
 		if c.Writer.Status() == http.StatusNotFound {
-			if c.Request.Method != "POST" && 
-			   (c.Request.URL.Path == "/update/" || 
-			    len(c.Request.URL.Path) > 8 && c.Request.URL.Path[:8] == "/update/") {
+			if c.Request.Method != "POST" &&
+				(c.Request.URL.Path == "/update/" ||
+					len(c.Request.URL.Path) > 8 && c.Request.URL.Path[:8] == "/update/") {
 				c.AbortWithStatus(http.StatusMethodNotAllowed)
 				return
 			}
 		}
 	})
-	
+
 	router.POST("/update/:type/:name/:value", handler.UpdateMetric)
-	
+
 	router.GET("/value/:type/:name", handler.GetMetric)
-	
+
 	router.POST("/update/:type/:name/", func(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 	})
-	
+
 	router.GET("/update/*path", func(c *gin.Context) {
 		c.AbortWithStatus(http.StatusMethodNotAllowed)
 	})
@@ -53,7 +53,7 @@ func setupTestRouter(storage *repository.MemStorage) *gin.Engine {
 	router.PATCH("/update/*path", func(c *gin.Context) {
 		c.AbortWithStatus(http.StatusMethodNotAllowed)
 	})
-	
+
 	return router
 }
 
