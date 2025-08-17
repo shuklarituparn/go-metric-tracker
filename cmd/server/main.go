@@ -63,7 +63,7 @@ func main() {
 	router.NoRoute(func(c *gin.Context) {
 		c.AbortWithStatus(http.StatusNotFound)
 	})
-	endpoint:= flag.String("a","http://localhost:8080", "endpoint address")
+	endpoint:= flag.String("a","localhost:8080", "endpoint address")
 	flag.Parse()
 
 	log.Printf("Starting metrics server on %s", *endpoint)
