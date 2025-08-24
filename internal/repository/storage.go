@@ -33,6 +33,7 @@ func (ms *MemStorage) UpdateGauge(name string, value float64) error {
 	if name == "" {
 		return fmt.Errorf("error: gauge metric name cannot be empty")
 	}
+
 	ms.mu.Lock()
 	defer ms.mu.Unlock()
 	ms.gauges[name] = value

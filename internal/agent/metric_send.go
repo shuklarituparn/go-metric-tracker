@@ -7,34 +7,39 @@ import (
 	"time"
 
 	models "github.com/shuklarituparn/go-metric-tracker/internal/model"
+	"github.com/shuklarituparn/go-metric-tracker/internal/repository"
 )
 
 type Sender struct {
 	client          *http.Client
 	serverAddress   string
 	reportInterval  time.Duration
-	metricCollector *MetricCollector
+	storage 	repository.Storage
+	ticker *time.Ticker
 }
 
-func NewSender(serverAddress string, reportInterval time.Duration, collector *MetricCollector) *Sender {
+func NewSender(serverAddress string, reportInterval time.Duration, storage repository.Storage) *Sender {
 	return &Sender{
 		client:          &http.Client{},
 		serverAddress:   serverAddress,
 		reportInterval:  reportInterval,
-		metricCollector: collector,
+		storage: storage,
 	}
 }
 
 func (s *Sender) Start() {
-	reportAfter := time.NewTicker(s.reportInterval)
+	s.ticker = time.NewTicker(s.reportInterval)
 	go func() {
-		for range reportAfter.C {
+		for range s.ticker.C {
 			s.SendMetrics()
 		}
 	}()
 }
 func (s *Sender) SendMetrics() {
-	metrics := s.metricCollector.storage.GetAllMetrics()
+	metrics := s.storage.GetAllMetrics()
+	if len(metrics)==0{
+		log.Println("No metrics to send")
+	}
 	for _, metric := range metrics {
 		if err := s.SendMetric(metric); err != nil {
 			log.Printf("Failed to send metric %s: %v", metric.ID, err)

@@ -12,28 +12,36 @@ import (
 	"github.com/shuklarituparn/go-metric-tracker/internal/repository"
 )
 
+type Collector interface {
+	Start()
+	Collect()
+	SendToStorage() error
+}
 type MetricCollector struct {
 	metrics      map[string]models.Metrics
 	mu           sync.RWMutex
 	pollCount    int64
 	pollInterval time.Duration
-	storage      *repository.MemStorage
+	storage      repository.Storage
+	ticker       *time.Ticker
+	done         chan bool
 }
 
-func NewMetricCollector(pollInterval time.Duration, storage *repository.MemStorage) *MetricCollector {
+func NewMetricCollector(pollInterval time.Duration, storage repository.Storage) Collector {
 	return &MetricCollector{
 		metrics:      make(map[string]models.Metrics),
 		pollCount:    0,
 		pollInterval: pollInterval,
 		storage:      storage,
+		done:         make(chan bool),
 	}
 
 }
 
 func (mc *MetricCollector) Start() {
-	ticker := time.NewTicker(mc.pollInterval)
+	mc.ticker = time.NewTicker(mc.pollInterval)
 	go func() {
-		for range ticker.C {
+		for range mc.ticker.C {
 			mc.Collect()
 			if err := mc.SendToStorage(); err != nil {
 				log.Printf("error: problem sending metric in metric collector")
@@ -55,176 +63,176 @@ func (mc *MetricCollector) Collect() {
 	allocValue := float64(metricStats.Alloc)
 	mc.metrics["Alloc"] = models.Metrics{
 		ID:    "Alloc",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &allocValue,
 	}
 
 	buckHashValue := float64(metricStats.BuckHashSys)
 	mc.metrics["BuckHashSys"] = models.Metrics{
 		ID:    "BuckHashSys",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &buckHashValue,
 	}
 	FreesVal := float64(metricStats.Frees)
 	mc.metrics["Frees"] = models.Metrics{
 		ID:    "Frees",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &FreesVal,
 	}
 	gpuFractionValue := float64(metricStats.GCCPUFraction)
 	mc.metrics["GCCPUFraction"] = models.Metrics{
 		ID:    "GCCPUFraction",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &gpuFractionValue,
 	}
 	gSysVal := float64(metricStats.GCSys)
 	mc.metrics["GCSys"] = models.Metrics{
 		ID:    "GCSys",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &gSysVal,
 	}
 	heapAllocValue := float64(metricStats.HeapAlloc)
 	mc.metrics["HeapAlloc"] = models.Metrics{
 		ID:    "HeapAlloc",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &heapAllocValue,
 	}
 	heapIdleValue := float64(metricStats.HeapIdle)
 	mc.metrics["HeapIdle"] = models.Metrics{
 		ID:    "HeapIdle",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &heapIdleValue,
 	}
 	heapInUseVal := float64(metricStats.HeapInuse)
 	mc.metrics["HeapInuse"] = models.Metrics{
 		ID:    "HeapInuse",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &heapInUseVal,
 	}
 	heapObjectVal := float64(metricStats.HeapObjects)
 	mc.metrics["HeapObjects"] = models.Metrics{
 		ID:    "HeapObjects",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &heapObjectVal,
 	}
 	heapReleasedVal := float64(metricStats.HeapReleased)
 	mc.metrics["HeapReleased"] = models.Metrics{
 		ID:    "HeapReleased",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &heapReleasedVal,
 	}
 	heapSysVal := float64(metricStats.HeapSys)
 	mc.metrics["HeapSys"] = models.Metrics{
 		ID:    "HeapSys",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &heapSysVal,
 	}
 	LastGCVal := float64(metricStats.LastGC)
 	mc.metrics["LastGC"] = models.Metrics{
 		ID:    "LastGC",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &LastGCVal,
 	}
 	LookupsVal := float64(metricStats.Lookups)
 	mc.metrics["Lookups"] = models.Metrics{
 		ID:    "Lookups",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &LookupsVal,
 	}
 	MCacheInuseVal := float64(metricStats.MCacheInuse)
 	mc.metrics["MCacheInuse"] = models.Metrics{
 		ID:    "MCacheInuse",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &MCacheInuseVal,
 	}
 	MCacheSysVal := float64(metricStats.MCacheSys)
 	mc.metrics["MCacheSys"] = models.Metrics{
 		ID:    "MCacheSys",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &MCacheSysVal,
 	}
 	MSpanInuseVal := float64(metricStats.MSpanInuse)
 	mc.metrics["MSpanInuse"] = models.Metrics{
 		ID:    "MSpanInuse",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &MSpanInuseVal,
 	}
 	MSpanSysVal := float64(metricStats.MSpanSys)
 	mc.metrics["MSpanSys"] = models.Metrics{
 		ID:    "MSpanSys",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &MSpanSysVal,
 	}
 	MallocsVal := float64(metricStats.Mallocs)
 	mc.metrics["Mallocs"] = models.Metrics{
 		ID:    "Mallocs",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &MallocsVal,
 	}
 	NextGCVal := float64(metricStats.NextGC)
 	mc.metrics["NextGC"] = models.Metrics{
 		ID:    "NextGC",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &NextGCVal,
 	}
 	NumForcedGCVal := float64(metricStats.NumForcedGC)
 	mc.metrics["NumForcedGC"] = models.Metrics{
 		ID:    "NumForcedGC",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &NumForcedGCVal,
 	}
 	NumGCVal := float64(metricStats.NumGC)
 	mc.metrics["NumGC"] = models.Metrics{
 		ID:    "NumGC",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &NumGCVal,
 	}
 	OtherSysVal := float64(metricStats.OtherSys)
 	mc.metrics["OtherSys"] = models.Metrics{
 		ID:    "OtherSys",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &OtherSysVal,
 	}
 	PauseTotalNsVal := float64(metricStats.PauseTotalNs)
 	mc.metrics["PauseTotalNs"] = models.Metrics{
 		ID:    "PauseTotalNs",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &PauseTotalNsVal,
 	}
 	StackInuseVal := float64(metricStats.StackInuse)
 	mc.metrics["StackInuse"] = models.Metrics{
 		ID:    "StackInuse",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &StackInuseVal,
 	}
 	StackSysVal := float64(metricStats.StackSys)
 	mc.metrics["StackSys"] = models.Metrics{
 		ID:    "StackSys",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &StackSysVal,
 	}
 	SysVal := float64(metricStats.Sys)
 	mc.metrics["Sys"] = models.Metrics{
 		ID:    "Sys",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &SysVal,
 	}
 	TotalAllocVal := float64(metricStats.TotalAlloc)
 	mc.metrics["TotalAlloc"] = models.Metrics{
 		ID:    "TotalAlloc",
-		MType: "gauge",
+		MType: models.Gauge,
 		Value: &TotalAllocVal,
 	}
 	pollCountDelta := mc.pollCount
 	mc.metrics["PollCount"] = models.Metrics{
 		ID:    "PollCount",
-		MType: "counter",
+		MType: models.Counter,
 		Delta: &pollCountDelta,
 	}
 	randomVal := rand.Float64()
 	mc.metrics["RandomValue"] = models.Metrics{
 		ID:    "RandomValue",
-		MType: "gauge",
+		MType: models.Counter,
 		Value: &randomVal,
 	}
 }

@@ -24,23 +24,23 @@ func (M *Metrics) IsValid() bool {
 	}
 	switch M.MType {
 	case Gauge:
-		return M.Value != nil && M.Delta != nil
+		return M.Value != nil
 	case Counter:
-		return M.Delta != nil && M.Value != nil
+		return M.Delta != nil
 	default:
 		return false
 	}
 }
 
 func (M *Metrics) GetGuageValue() (float64, bool) {
-	if M.MType != Gauge || M.Value == nil {
+	if !M.IsValid() {
 		return 0, false
 	}
 	return *M.Value, true
 }
 
 func (M *Metrics) GetCounterValue() (int64, bool) {
-	if M.MType != Counter || M.Delta == nil {
+	if !M.IsValid() {
 		return 0, false
 	}
 	return *M.Delta, true
