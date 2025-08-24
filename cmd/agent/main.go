@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -19,8 +20,9 @@ func main() {
 	metricCollector := agent.NewMetricCollector(cfg.PollInterval, storage)
 	metricCollector.Start()
 	time.Sleep(2 * time.Second)
+	fullendpoint :=fmt.Sprintf("http://%s", cfg.Endpoint)
 
-	metricSender := agent.NewSender(cfg.Endpoint, cfg.ReportInterval, storage)
+	metricSender := agent.NewSender(fullendpoint, cfg.ReportInterval, storage)
 	metricSender.Start()
 
 	sig := make(chan os.Signal, 1)

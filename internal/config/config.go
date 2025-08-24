@@ -36,14 +36,14 @@ func Load() *AppConfig{
 		log.Fatalf("err: during parsing flag reportInterval: %v", err)
 	}
 
-	fullendpoint := "http://" + *endpoint
+
 	log.Printf("Starting metrics server on %s", *endpoint)
-	log.Printf("Update metrics: POST http://%s/update/<type>/<name>/<value>", fullendpoint)
-	log.Printf("Get metric value: GET http://%s/value/<type>/<name>", fullendpoint)
+	log.Printf("Update metrics: POST http://%s/update/<type>/<name>/<value>", *endpoint)
+	log.Printf("Get metric value: GET http://%s/value/<type>/<name>", *endpoint)
 	log.Printf("View all metrics: GET http://%s/debug", *endpoint)
 
 	return &AppConfig{
-		Endpoint:       fmt.Sprintf("http://%s", *endpoint),
+		Endpoint:       *endpoint,
 		ReportInterval: time.Duration(correctReportDuration) * time.Second,
 		PollInterval:   time.Duration(correctPollDuration) * time.Second,
 	}
