@@ -34,10 +34,6 @@ func Load() *AppConfig {
 	if err != nil {
 		log.Printf("err: while parsing default report interval in config")
 	}
-	err = env.Parse(appConfig)
-	if err != nil {
-		log.Fatalf("Failed to parse environment variables: %v", err)
-	}
 	appConfig = &AppConfig{
 		Endpoint:       defaultEndpoint,
 		PollInterval:   time.Duration(pollTimeDuration) * time.Second,
@@ -64,7 +60,7 @@ func Load() *AppConfig {
 		appConfig.ReportInterval = time.Duration(parseReportnterval)
 	}
 	if *pollInterval != "" {
-		appConfig.ReportInterval = time.Duration(parsePollInterval)
+		appConfig.PollInterval = time.Duration(parsePollInterval)
 
 	}
 
