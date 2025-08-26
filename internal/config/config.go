@@ -68,9 +68,9 @@ func Load() *AppConfig {
 		log.Printf("err: no env variables are given")
 	}
 
-	log.Printf("Starting metrics server on %s",appConfig.Endpoint)
-	log.Printf("Update metrics: POST http://%s/update/<type>/<name>/<value>",appConfig.Endpoint)
-	log.Printf("Get metric value: GET http://%s/value/<type>/<name>",appConfig.Endpoint)
+	log.Printf("Starting metrics server on %s", appConfig.Endpoint)
+	log.Printf("Update metrics: POST http://%s/update/<type>/<name>/<value>", appConfig.Endpoint)
+	log.Printf("Get metric value: GET http://%s/value/<type>/<name>", appConfig.Endpoint)
 	log.Printf("View all metrics: GET http://%s/debug", appConfig.Endpoint)
 	log.Printf("Poll Interval: %v", appConfig.PollInterval)
 	log.Printf("Report Interval: %v", appConfig.ReportInterval)
