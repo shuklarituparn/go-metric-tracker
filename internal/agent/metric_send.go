@@ -11,19 +11,19 @@ import (
 )
 
 type Sender struct {
-	client          *http.Client
-	serverAddress   string
-	reportInterval  time.Duration
-	storage 	repository.Storage
-	ticker *time.Ticker
+	client         *http.Client
+	serverAddress  string
+	reportInterval time.Duration
+	storage        repository.Storage
+	ticker         *time.Ticker
 }
 
 func NewSender(serverAddress string, reportInterval time.Duration, storage repository.Storage) *Sender {
 	return &Sender{
-		client:          &http.Client{},
-		serverAddress:   serverAddress,
-		reportInterval:  reportInterval,
-		storage: storage,
+		client:         &http.Client{},
+		serverAddress:  serverAddress,
+		reportInterval: reportInterval,
+		storage:        storage,
 	}
 }
 
@@ -37,7 +37,7 @@ func (s *Sender) Start() {
 }
 func (s *Sender) SendMetrics() {
 	metrics := s.storage.GetAllMetrics()
-	if len(metrics)==0{
+	if len(metrics) == 0 {
 		log.Println("No metrics to send")
 	}
 	for _, metric := range metrics {

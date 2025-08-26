@@ -20,7 +20,7 @@ func main() {
 	metricCollector := agent.NewMetricCollector(cfg.PollInterval, storage)
 	metricCollector.Start()
 	time.Sleep(2 * time.Second)
-	fullendpoint :=fmt.Sprintf("http://%s", cfg.Endpoint)
+	fullendpoint := fmt.Sprintf("http://%s", cfg.Endpoint)
 
 	metricSender := agent.NewSender(fullendpoint, cfg.ReportInterval, storage)
 	metricSender.Start()

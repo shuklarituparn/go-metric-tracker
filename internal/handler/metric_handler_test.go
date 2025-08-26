@@ -2,6 +2,7 @@
 package handler
 
 import (
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -219,7 +220,9 @@ func TestMetricsHandler_GetMetric(t *testing.T) {
 		{
 			name: "Get existing gauge metric",
 			setupMetrics: func(storage *repository.MemStorage) {
-				storage.UpdateGauge("temperature", 25.5)
+				if err := storage.UpdateGauge("temperature", 25.5); err != nil {
+					log.Printf("err: problem updating the gauge")
+				}
 			},
 			url:            "/value/gauge/temperature",
 			expectedStatus: http.StatusOK,
@@ -228,7 +231,9 @@ func TestMetricsHandler_GetMetric(t *testing.T) {
 		{
 			name: "Get existing counter metric",
 			setupMetrics: func(storage *repository.MemStorage) {
-				storage.UpdateCounter("requests", 100)
+				if err := storage.UpdateCounter("requests", 100); err != nil {
+					log.Printf("err: problem updating the counter")
+				}
 			},
 			url:            "/value/counter/requests",
 			expectedStatus: http.StatusOK,
