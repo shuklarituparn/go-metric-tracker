@@ -144,11 +144,6 @@ func (h *MetricsHandler) GetMetricJSON(c *gin.Context) {
 		return
 	}
 
-	if !metric.IsValid() {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "wrong metric"})
-		return
-	}
-
 	storedMetric, exists := h.storage.GetMetric(metric.ID)
 	if !exists {
 		c.JSON(http.StatusNotFound, gin.H{"error": "metric not found"})
