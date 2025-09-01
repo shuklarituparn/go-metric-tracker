@@ -232,7 +232,7 @@ func (mc *MetricCollector) Collect() {
 	randomVal := rand.Float64()
 	mc.metrics["RandomValue"] = models.Metrics{
 		ID:    "RandomValue",
-		MType: models.Counter,
+		MType: models.Gauge,
 		Value: &randomVal,
 	}
 }
