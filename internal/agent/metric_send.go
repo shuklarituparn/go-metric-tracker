@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -65,7 +67,6 @@ func (s *Sender) SendMetric(metric models.Metrics) error {
 	if err != nil {
 		return fmt.Errorf("err: failed to create request: %w", err)
 	}
-
 	req.Header.Set("Content-Type", "text/plain")
 	resp, err := s.client.Do(req)
 
@@ -73,8 +74,30 @@ func (s *Sender) SendMetric(metric models.Metrics) error {
 		return fmt.Errorf("err: failed to create request: %w", err)
 
 	}
+	metricJson, err := json.Marshal(metric)
+	if err != nil {
+		return fmt.Errorf("err: failed to marshal metric: %w", err)
+
+	}
+	urlJson := fmt.Sprintf("%s/value/", s.serverAddress)
+	jsonReq, err := http.NewRequest(http.MethodPost, urlJson, bytes.NewBuffer(metricJson))
+	if err != nil {
+		return fmt.Errorf("err: failed to create request: %w", err)
+
+	}
+	jsonReq.Header.Set("Content-Type", "text/plain")
+	Jsonresp, err := s.client.Do(jsonReq)
+
+	if err != nil {
+		return fmt.Errorf("err: failed to create request: %w", err)
+
+	}
+
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
+			log.Printf("failed to close response body: %v", err)
+		}
+		if err := Jsonresp.Body.Close(); err != nil {
 			log.Printf("failed to close response body: %v", err)
 		}
 	}()
