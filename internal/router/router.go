@@ -44,14 +44,6 @@ func NewRouter() *gin.Engine {
 		c.AbortWithStatus(http.StatusBadRequest)
 	})
 
-	router.Any("/update/*path", func(c *gin.Context) {
-		if c.Request.Method == "POST" {
-			c.AbortWithStatus(http.StatusBadRequest)
-		} else {
-			c.AbortWithStatus(http.StatusMethodNotAllowed)
-		}
-	})
-
 	router.NoRoute(func(c *gin.Context) {
 		c.AbortWithStatus(http.StatusNotFound)
 	})
