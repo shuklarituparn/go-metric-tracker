@@ -49,6 +49,8 @@ func NewRouter() *gin.Engine {
 		}
 	})
 
+	router.POST("/update", metricsHandler.UpdateMetricJSON)
+
 	router.POST("/update/:type/:name/:value", metricsHandler.UpdateMetric)
 
 	router.GET("/value/:type/:name", metricsHandler.GetMetric)
