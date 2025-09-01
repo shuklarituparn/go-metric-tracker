@@ -74,13 +74,13 @@ func (s *Sender) SendMetric(metric models.Metrics) error {
 		return fmt.Errorf("err: failed to create request: %w", err)
 
 	}
-	metricJson, err := json.Marshal(metric)
+	metricJSON, err := json.Marshal(metric)
 	if err != nil {
 		return fmt.Errorf("err: failed to marshal metric: %w", err)
 
 	}
-	urlJson := fmt.Sprintf("%s/value/", s.serverAddress)
-	jsonReq, err := http.NewRequest(http.MethodPost, urlJson, bytes.NewBuffer(metricJson))
+	urlJSON := fmt.Sprintf("%s/value/", s.serverAddress)
+	jsonReq, err := http.NewRequest(http.MethodPost, urlJSON, bytes.NewBuffer(metricJSON))
 	if err != nil {
 		return fmt.Errorf("err: failed to create request: %w", err)
 
