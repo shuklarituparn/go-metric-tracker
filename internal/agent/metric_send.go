@@ -1,8 +1,6 @@
 package agent
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -53,18 +51,22 @@ func (s *Sender) SendMetrics() {
 func (s *Sender) SendMetric(metric models.Metrics) error {
 	var url string
 
-	metricJSON, err := json.Marshal(metric)
-	if err != nil {
-		return fmt.Errorf("failed to marshal metric: %w", err)
-	}
+	switch metric.MType {
+	case models.Gauge:
+		url = fmt.Sprintf("%s/update/gauge/%s/%g", s.serverAddress, metric.ID, *metric.Value)
+	case models.Counter:
+		url = fmt.Sprintf("%s/update/counter/%s/%d", s.serverAddress, metric.ID, *metric.Delta)
+	default:
+		return fmt.Errorf("unknown metric type: %v", metric.MType)
 
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(metricJSON))
+	}
+	req, err := http.NewRequest(http.MethodPost, url, nil)
 
 	if err != nil {
 		return fmt.Errorf("err: failed to create request: %w", err)
 	}
 
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", "text/plain")
 	resp, err := s.client.Do(req)
 
 	if err != nil {
