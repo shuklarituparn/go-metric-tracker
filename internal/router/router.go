@@ -3,6 +3,7 @@ package router
 import (
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shuklarituparn/go-metric-tracker/internal/handler"
@@ -23,7 +24,7 @@ func NewRouter() *gin.Engine {
 		log.Fatal("err: problem starting logger")
 	}
 	defer func() {
-		if syncErr := logger.Sync(); syncErr != nil {
+		if syncErr := logger.Sync(); syncErr != nil && !strings.Contains(syncErr.Error(), "sync /dev/stderr") {
 			log.Printf("Failed to sync logger: %v", syncErr)
 		}
 	}()
@@ -50,6 +51,7 @@ func NewRouter() *gin.Engine {
 	})
 
 	router.POST("/update", metricsHandler.UpdateMetricJSON)
+	router.POST("/value", metricsHandler.GetMetricJSON)
 
 	router.POST("/update/:type/:name/:value", metricsHandler.UpdateMetric)
 

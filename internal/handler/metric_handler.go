@@ -31,6 +31,7 @@ func (h *MetricsHandler) UpdateMetric(c *gin.Context) {
 
 	log.Printf("Received request: %s %s", c.Request.Method, c.Request.URL.Path)
 	log.Printf("Path params: type=%s, name=%s, value=%s", metricType, metricName, metricValue)
+
 	if metricName == "" {
 		c.String(http.StatusNotFound, "Metric name required")
 		return
@@ -69,7 +70,6 @@ func (h *MetricsHandler) UpdateMetric(c *gin.Context) {
 		c.String(http.StatusBadRequest, "Invalid metric type")
 		return
 	}
-
 }
 
 func (h *MetricsHandler) GetMetric(c *gin.Context) {
@@ -108,21 +108,36 @@ func (h *MetricsHandler) UpdateMetricJSON(c *gin.Context) {
 	var metric models.Metrics
 
 	if err := c.ShouldBindJSON(&metric); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"err": "invalid json"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid json"})
+		return
 	}
-	if err := metric.IsValid(); !err {
+
+	if !metric.IsValid() {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "wrong metric"})
+		return
 	}
-	if metric.MType == models.Gauge {
+
+	switch metric.MType {
+	case models.Gauge:
+		if metric.Value == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "gauge value is required"})
+			return
+		}
 		if err := h.storage.UpdateGauge(metric.ID, *metric.Value); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
 		}
-	}
-	if metric.MType == models.Counter {
+	case models.Counter:
+		if metric.Delta == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "counter delta is required"})
+			return
+		}
 		if err := h.storage.UpdateCounter(metric.ID, *metric.Delta); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
 		}
 	}
+
 	c.JSON(http.StatusOK, metric)
 }
 
@@ -133,16 +148,21 @@ func (h *MetricsHandler) GetMetricJSON(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid json"})
 		return
 	}
-	if err := metric.IsValid(); !err {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "wrong metric"})
-	}
-	storedMetric, err := h.storage.GetMetric(metric.ID)
 
-	if !err {
-		c.JSON(http.StatusNotFound, gin.H{"error": "not found metric"})
+	if !metric.IsValid() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "wrong metric"})
+		return
 	}
+
+	storedMetric, exists := h.storage.GetMetric(metric.ID)
+	if !exists {
+		c.JSON(http.StatusNotFound, gin.H{"error": "metric not found"})
+		return
+	}
+
 	c.JSON(http.StatusOK, storedMetric)
 }
+
 func NewDebugHandler(storage repository.Storage) *DebugHandler {
 	return &DebugHandler{
 		storage: storage,
@@ -150,7 +170,6 @@ func NewDebugHandler(storage repository.Storage) *DebugHandler {
 }
 
 func (h *DebugHandler) DebugHandler(c *gin.Context) {
-
 	metrics := h.storage.GetAllMetrics()
 
 	if len(metrics) == 0 {
@@ -158,14 +177,19 @@ func (h *DebugHandler) DebugHandler(c *gin.Context) {
 		return
 	}
 
+	var output string
 	for _, metric := range metrics {
 		switch metric.MType {
 		case models.Gauge:
-			output := fmt.Sprintf("%s (gauge): %v\n", metric.ID, *metric.Value)
-			c.String(http.StatusOK, output)
+			if metric.Value != nil {
+				output += fmt.Sprintf("%s (gauge): %v\n", metric.ID, *metric.Value)
+			}
 		case models.Counter:
-			output := fmt.Sprintf("%s (counter): %v\n", metric.ID, *metric.Delta)
-			c.String(http.StatusOK, output)
+			if metric.Delta != nil {
+				output += fmt.Sprintf("%s (counter): %v\n", metric.ID, *metric.Delta)
+			}
 		}
 	}
+
+	c.String(http.StatusOK, output)
 }
