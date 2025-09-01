@@ -112,11 +112,6 @@ func (h *MetricsHandler) UpdateMetricJSON(c *gin.Context) {
 		return
 	}
 
-	if !metric.IsValid() {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "wrong metric"})
-		return
-	}
-
 	switch metric.MType {
 	case models.Gauge:
 		if metric.Value == nil {

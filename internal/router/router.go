@@ -33,8 +33,8 @@ func NewRouter() *gin.Engine {
 	router.Use(gin.Recovery())
 	router.Use(middleware.Logger(logger))
 
-	router.POST("/update", metricsHandler.UpdateMetricJSON)
-	router.POST("/value", metricsHandler.GetMetricJSON)
+	router.POST("/update/", metricsHandler.UpdateMetricJSON)
+	router.POST("/value/", metricsHandler.GetMetricJSON)
 	router.POST("/update/:type/:name/:value", metricsHandler.UpdateMetric)
 	router.GET("/value/:type/:name", metricsHandler.GetMetric)
 	router.GET("/", debugHandler.DebugHandler)
