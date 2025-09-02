@@ -33,11 +33,12 @@ func NewRouter() *gin.Engine {
 	router.Use(middleware.Logger(logger))
 	router.Use(middleware.CompressionMiddleware())
 	router.Use(middleware.DecompressionMiddleware())
-
+	
 	router.POST("/update/", metricsHandler.UpdateMetricJSON)
 	router.POST("/value/", metricsHandler.GetMetricJSON)
 	router.POST("/update/:type/:name/:value", metricsHandler.UpdateMetric)
 	router.GET("/value/:type/:name", metricsHandler.GetMetric)
+	router.GET("/", handler.DefaultHandle)
 	router.POST("/update/:type/:name/", func(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 	})
