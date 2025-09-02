@@ -17,3 +17,31 @@ type Metrics struct {
 	Value *float64 `json:"value,omitempty"`
 	Hash  string   `json:"hash,omitempty"`
 }
+
+func (M *Metrics) IsValid() bool {
+	if M.ID == "" {
+		return false
+	}
+	switch M.MType {
+	case Gauge:
+		return M.Value != nil
+	case Counter:
+		return M.Delta != nil
+	default:
+		return false
+	}
+}
+
+func (M *Metrics) GetGuageValue() (float64, bool) {
+	if !M.IsValid() {
+		return 0, false
+	}
+	return *M.Value, true
+}
+
+func (M *Metrics) GetCounterValue() (int64, bool) {
+	if !M.IsValid() {
+		return 0, false
+	}
+	return *M.Delta, true
+}
