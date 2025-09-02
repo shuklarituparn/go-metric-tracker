@@ -135,7 +135,7 @@ func (h *MetricsHandler) UpdateMetricJSON(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusOK, metric)
-		
+
 	case models.Counter:
 		if metric.Delta == nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "counter delta is required"})
@@ -148,7 +148,7 @@ func (h *MetricsHandler) UpdateMetricJSON(c *gin.Context) {
 		newValue, _ := h.storage.GetCounter(metric.ID)
 		metric.Delta = &newValue
 		c.JSON(http.StatusOK, metric)
-		
+
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid metric type"})
 		return

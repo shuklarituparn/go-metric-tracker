@@ -10,6 +10,7 @@ import (
 
 	models "github.com/shuklarituparn/go-metric-tracker/internal/model"
 	"github.com/shuklarituparn/go-metric-tracker/internal/repository"
+	"github.com/shuklarituparn/go-metric-tracker/internal/utils"
 )
 
 type Sender struct {
@@ -44,7 +45,7 @@ func (s *Sender) SendMetrics() {
 		log.Println("No metrics to send")
 		return
 	}
-	
+
 	for _, metric := range metrics {
 		if err := s.SendMetric(metric); err != nil {
 			log.Printf("Failed to send metric %s: %v", metric.ID, err)
@@ -58,16 +59,22 @@ func (s *Sender) SendMetric(metric models.Metrics) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal metric: %w", err)
 	}
-	
+
+	compressedData, err := utils.CompressedData(metricJSON)
+	if err != nil {
+		return fmt.Errorf("err: failed to compress data: %s", err.Error())
+	}
 	url := fmt.Sprintf("%s/update/", s.serverAddress)
-	
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(metricJSON))
+
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(compressedData))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
-	
+
 	req.Header.Set("Content-Type", "application/json")
-	
+	req.Header.Set("Content-Encoding", "gzip")
+	req.Header.Set("Accept-Encoding", "gzip")
+
 	resp, err := s.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
@@ -77,10 +84,10 @@ func (s *Sender) SendMetric(metric models.Metrics) error {
 			log.Printf("failed to close response body: %v", err)
 		}
 	}()
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("server returned status %d", resp.StatusCode)
 	}
-	
+
 	return nil
 }
