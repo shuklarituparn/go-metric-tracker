@@ -10,6 +10,7 @@ import (
 
 	models "github.com/shuklarituparn/go-metric-tracker/internal/model"
 	"github.com/shuklarituparn/go-metric-tracker/internal/repository"
+	"github.com/shuklarituparn/go-metric-tracker/internal/utils"
 )
 
 type Sender struct {
@@ -51,41 +52,24 @@ func (s *Sender) SendMetrics() {
 }
 
 func (s *Sender) SendMetric(metric models.Metrics) error {
-	var url string
-
-	switch metric.MType {
-	case models.Gauge:
-		url = fmt.Sprintf("%s/update/gauge/%s/%g", s.serverAddress, metric.ID, *metric.Value)
-	case models.Counter:
-		url = fmt.Sprintf("%s/update/counter/%s/%d", s.serverAddress, metric.ID, *metric.Delta)
-	default:
-		return fmt.Errorf("unknown metric type: %v", metric.MType)
-
-	}
-	req, err := http.NewRequest(http.MethodPost, url, nil)
-
-	if err != nil {
-		return fmt.Errorf("err: failed to create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "text/plain")
-	resp, err := s.client.Do(req)
-
-	if err != nil {
-		return fmt.Errorf("err: failed to create request: %w", err)
-
-	}
 	metricJSON, err := json.Marshal(metric)
 	if err != nil {
 		return fmt.Errorf("err: failed to marshal metric: %w", err)
 
 	}
-	urlJSON := fmt.Sprintf("%s/value/", s.serverAddress)
-	jsonReq, err := http.NewRequest(http.MethodPost, urlJSON, bytes.NewBuffer(metricJSON))
+	compressedData, err := utils.CompressedData(metricJSON)
+	if err != nil {
+		return fmt.Errorf("err: failed to compress data: %s", err.Error())
+	}
+	urlJSON := fmt.Sprintf("%s/update", s.serverAddress)
+	jsonReq, err := http.NewRequest(http.MethodPost, urlJSON, bytes.NewBuffer(compressedData))
 	if err != nil {
 		return fmt.Errorf("err: failed to create request: %w", err)
 
 	}
 	jsonReq.Header.Set("Content-Type", "text/plain")
+	jsonReq.Header.Set("Content-Encoding", "gzip")
+	jsonReq.Header.Set("Accept-Encoding", "gzip")
 	Jsonresp, err := s.client.Do(jsonReq)
 
 	if err != nil {
@@ -94,16 +78,13 @@ func (s *Sender) SendMetric(metric models.Metrics) error {
 	}
 
 	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			log.Printf("failed to close response body: %v", err)
-		}
 		if err := Jsonresp.Body.Close(); err != nil {
 			log.Printf("failed to close response body: %v", err)
 		}
 	}()
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("server returned status %d", resp.StatusCode)
+	if Jsonresp.StatusCode != http.StatusOK {
+		return fmt.Errorf("server returned status %d", Jsonresp.StatusCode)
 	}
 
 	return nil
