@@ -67,7 +67,7 @@ func (s *Sender) SendMetric(metric models.Metrics) error {
 		return fmt.Errorf("err: failed to create request: %w", err)
 
 	}
-	jsonReq.Header.Set("Content-Type", "text/plain")
+	jsonReq.Header.Set("Content-Type", "application/json")
 	jsonReq.Header.Set("Content-Encoding", "gzip")
 	jsonReq.Header.Set("Accept-Encoding", "gzip")
 	Jsonresp, err := s.client.Do(jsonReq)
