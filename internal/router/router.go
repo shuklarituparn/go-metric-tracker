@@ -14,7 +14,6 @@ import (
 func NewRouter() *gin.Engine {
 	storage := repository.NewMemStorage()
 	metricsHandler := handler.NewMetricHandler(storage)
-	debugHandler := handler.NewDebugHandler(storage)
 
 	logger, err := zap.NewProduction()
 	if err != nil {
@@ -39,9 +38,6 @@ func NewRouter() *gin.Engine {
 	router.POST("/value/", metricsHandler.GetMetricJSON)
 	router.POST("/update/:type/:name/:value", metricsHandler.UpdateMetric)
 	router.GET("/value/:type/:name", metricsHandler.GetMetric)
-	router.GET("/", debugHandler.DebugHandler)
-	router.GET("/debug", debugHandler.DebugHandler)
-
 	router.POST("/update/:type/:name/", func(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 	})

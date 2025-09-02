@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -12,10 +11,6 @@ import (
 )
 
 type MetricsHandler struct {
-	storage repository.Storage
-}
-
-type DebugHandler struct {
 	storage repository.Storage
 }
 
@@ -175,35 +170,4 @@ func (h *MetricsHandler) GetMetricJSON(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, storedMetric)
-}
-
-func NewDebugHandler(storage repository.Storage) *DebugHandler {
-	return &DebugHandler{
-		storage: storage,
-	}
-}
-
-func (h *DebugHandler) DebugHandler(c *gin.Context) {
-	metrics := h.storage.GetAllMetrics()
-
-	if len(metrics) == 0 {
-		c.String(http.StatusNoContent, "No metrics stored")
-		return
-	}
-
-	var output string
-	for _, metric := range metrics {
-		switch metric.MType {
-		case models.Gauge:
-			if metric.Value != nil {
-				output += fmt.Sprintf("%s (gauge): %v\n", metric.ID, *metric.Value)
-			}
-		case models.Counter:
-			if metric.Delta != nil {
-				output += fmt.Sprintf("%s (counter): %v\n", metric.ID, *metric.Delta)
-			}
-		}
-	}
-
-	c.String(http.StatusOK, output)
 }
