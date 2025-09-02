@@ -37,11 +37,14 @@ func (s *Sender) Start() {
 		}
 	}()
 }
+
 func (s *Sender) SendMetrics() {
 	metrics := s.storage.GetAllMetrics()
 	if len(metrics) == 0 {
 		log.Println("No metrics to send")
+		return
 	}
+	
 	for _, metric := range metrics {
 		if err := s.SendMetric(metric); err != nil {
 			log.Printf("Failed to send metric %s: %v", metric.ID, err)
@@ -51,61 +54,33 @@ func (s *Sender) SendMetrics() {
 }
 
 func (s *Sender) SendMetric(metric models.Metrics) error {
-	var url string
-
-	switch metric.MType {
-	case models.Gauge:
-		url = fmt.Sprintf("%s/update/gauge/%s/%g", s.serverAddress, metric.ID, *metric.Value)
-	case models.Counter:
-		url = fmt.Sprintf("%s/update/counter/%s/%d", s.serverAddress, metric.ID, *metric.Delta)
-	default:
-		return fmt.Errorf("unknown metric type: %v", metric.MType)
-
-	}
-	req, err := http.NewRequest(http.MethodPost, url, nil)
-
-	if err != nil {
-		return fmt.Errorf("err: failed to create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "text/plain")
-	resp, err := s.client.Do(req)
-
-	if err != nil {
-		return fmt.Errorf("err: failed to create request: %w", err)
-
-	}
 	metricJSON, err := json.Marshal(metric)
 	if err != nil {
-		return fmt.Errorf("err: failed to marshal metric: %w", err)
-
+		return fmt.Errorf("failed to marshal metric: %w", err)
 	}
-	urlJSON := fmt.Sprintf("%s/value/", s.serverAddress)
-	jsonReq, err := http.NewRequest(http.MethodPost, urlJSON, bytes.NewBuffer(metricJSON))
+	
+	url := fmt.Sprintf("%s/update", s.serverAddress)
+	
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(metricJSON))
 	if err != nil {
-		return fmt.Errorf("err: failed to create request: %w", err)
-
+		return fmt.Errorf("failed to create request: %w", err)
 	}
-	jsonReq.Header.Set("Content-Type", "text/plain")
-	Jsonresp, err := s.client.Do(jsonReq)
-
+	
+	req.Header.Set("Content-Type", "application/json")
+	
+	resp, err := s.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("err: failed to create request: %w", err)
-
+		return fmt.Errorf("failed to send request: %w", err)
 	}
-
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
 			log.Printf("failed to close response body: %v", err)
 		}
-		if err := Jsonresp.Body.Close(); err != nil {
-			log.Printf("failed to close response body: %v", err)
-		}
 	}()
-
+	
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("server returned status %d", resp.StatusCode)
 	}
-
+	
 	return nil
-
 }

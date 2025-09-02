@@ -2,10 +2,11 @@ package config
 
 import (
 	"flag"
-	"github.com/caarlos0/env/v6"
 	"log"
 	"strconv"
 	"time"
+
+	"github.com/caarlos0/env/v6"
 )
 
 const (
@@ -25,16 +26,18 @@ type AppConfig struct {
 }
 
 func Load() *AppConfig {
-	var appConfig *AppConfig
 	pollTimeDuration, err := strconv.Atoi(defaultPollInterval)
 	if err != nil {
-		log.Printf("err: while parsing default pollduration in config")
+		log.Printf("err: while parsing default poll duration in config")
+		pollTimeDuration = 2
 	}
 	reportTimeDuration, err := strconv.Atoi(defaultReportInterval)
 	if err != nil {
 		log.Printf("err: while parsing default report interval in config")
+		reportTimeDuration = 10
 	}
-	appConfig = &AppConfig{
+
+	appConfig := &AppConfig{
 		Endpoint:       defaultEndpoint,
 		PollInterval:   time.Duration(pollTimeDuration) * time.Second,
 		ReportInterval: time.Duration(reportTimeDuration) * time.Second,
@@ -45,27 +48,30 @@ func Load() *AppConfig {
 	pollInterval := flag.String("p", defaultPollInterval, "poll interval (seconds)")
 	flag.Parse()
 
-	parseReportnterval, err := strconv.Atoi(*reportInterval)
-	if err != nil {
-		log.Printf("err: converting parseTimeInterval to int")
-	}
-	parsePollInterval, err := strconv.Atoi(*pollInterval)
-	if err != nil {
-		log.Printf("err: converting parseTimeInterval to int")
-	}
 	if *endpoint != "" {
 		appConfig.Endpoint = *endpoint
 	}
-	if *reportInterval != "" {
-		appConfig.ReportInterval = time.Duration(parseReportnterval)
-	}
-	if *pollInterval != "" {
-		appConfig.PollInterval = time.Duration(parsePollInterval)
 
+	if *reportInterval != "" {
+		parseReportInterval, err := strconv.Atoi(*reportInterval)
+		if err != nil {
+			log.Printf("err: converting reportInterval to int: %v", err)
+		} else {
+			appConfig.ReportInterval = time.Duration(parseReportInterval) * time.Second
+		}
+	}
+
+	if *pollInterval != "" {
+		parsePollInterval, err := strconv.Atoi(*pollInterval)
+		if err != nil {
+			log.Printf("err: converting pollInterval to int: %v", err)
+		} else {
+			appConfig.PollInterval = time.Duration(parsePollInterval) * time.Second
+		}
 	}
 
 	if err := env.Parse(appConfig); err != nil {
-		log.Printf("err: no env variables are given")
+		log.Printf("err: parsing env variables: %v", err)
 	}
 
 	log.Printf("Starting metrics server on %s", appConfig.Endpoint)
@@ -76,5 +82,4 @@ func Load() *AppConfig {
 	log.Printf("Report Interval: %v", appConfig.ReportInterval)
 
 	return appConfig
-
 }

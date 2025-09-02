@@ -14,6 +14,7 @@ import (
 type MetricsHandler struct {
 	storage repository.Storage
 }
+
 type DebugHandler struct {
 	storage repository.Storage
 }
@@ -108,7 +109,18 @@ func (h *MetricsHandler) UpdateMetricJSON(c *gin.Context) {
 	var metric models.Metrics
 
 	if err := c.ShouldBindJSON(&metric); err != nil {
+		log.Printf("Failed to bind JSON: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid json"})
+		return
+	}
+
+	if metric.ID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "metric id is required"})
+		return
+	}
+
+	if metric.MType == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "metric type is required"})
 		return
 	}
 
@@ -122,6 +134,8 @@ func (h *MetricsHandler) UpdateMetricJSON(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+		c.JSON(http.StatusOK, metric)
+		
 	case models.Counter:
 		if metric.Delta == nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "counter delta is required"})
@@ -131,9 +145,14 @@ func (h *MetricsHandler) UpdateMetricJSON(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+		newValue, _ := h.storage.GetCounter(metric.ID)
+		metric.Delta = &newValue
+		c.JSON(http.StatusOK, metric)
+		
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid metric type"})
+		return
 	}
-
-	c.JSON(http.StatusOK, metric)
 }
 
 func (h *MetricsHandler) GetMetricJSON(c *gin.Context) {
@@ -141,6 +160,11 @@ func (h *MetricsHandler) GetMetricJSON(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&metric); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid json"})
+		return
+	}
+
+	if metric.ID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "metric id is required"})
 		return
 	}
 
