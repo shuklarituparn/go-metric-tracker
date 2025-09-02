@@ -59,7 +59,7 @@ func (s *Sender) SendMetric(metric models.Metrics) error {
 		return fmt.Errorf("failed to marshal metric: %w", err)
 	}
 	
-	url := fmt.Sprintf("%s/update", s.serverAddress)
+	url := fmt.Sprintf("%s/update/", s.serverAddress)
 	
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(metricJSON))
 	if err != nil {
