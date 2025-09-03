@@ -8,9 +8,8 @@ import (
 )
 
 func main() {
-
-	cfg := config.Load()
-	router := router.NewRouter()
+	cfg := config.LoadServerConfig()
+	router := router.NewRouterWithFS(cfg)
 	if err := router.Run(cfg.Endpoint); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}

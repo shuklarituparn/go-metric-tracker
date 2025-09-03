@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shuklarituparn/go-metric-tracker/internal/config"
 	"github.com/shuklarituparn/go-metric-tracker/internal/handler"
 	"github.com/shuklarituparn/go-metric-tracker/internal/middleware"
 	"github.com/shuklarituparn/go-metric-tracker/internal/repository"
@@ -13,6 +14,15 @@ import (
 
 func NewRouter() *gin.Engine {
 	storage := repository.NewMemStorage()
+	return CreateRouter(storage)
+}
+func NewRouterWithFS(cfg *config.ServerConfig) *gin.Engine {
+	storage := repository.NewFileStorage(cfg.FileStoragePath, cfg.StoreInterval, cfg.Restore)
+	router := CreateRouter(storage)
+	return router
+}
+
+func CreateRouter(storage repository.Storage) *gin.Engine {
 	metricsHandler := handler.NewMetricHandler(storage)
 
 	logger, err := zap.NewProduction()
@@ -33,7 +43,7 @@ func NewRouter() *gin.Engine {
 	router.Use(middleware.Logger(logger))
 	router.Use(middleware.CompressionMiddleware())
 	router.Use(middleware.DecompressionMiddleware())
-	
+
 	router.POST("/update/", metricsHandler.UpdateMetricJSON)
 	router.POST("/value/", metricsHandler.GetMetricJSON)
 	router.POST("/update/:type/:name/:value", metricsHandler.UpdateMetric)

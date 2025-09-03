@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	cfg := config.Load()
+	cfg := config.LoadAgentConfig()
 	storage := repository.NewMemStorage()
 
 	metricCollector := agent.NewMetricCollector(cfg.PollInterval, storage)
