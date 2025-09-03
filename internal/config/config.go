@@ -30,10 +30,11 @@ type AgentConfig struct {
 }
 
 type ServerConfig struct {
-	Endpoint        string        `env:"ADDRESS"`
-	StoreInterval   time.Duration `env:"STORE_INTERVAL"`
-	FileStoragePath string        `env:"FILE_STORAGE_PATH"`
-	Restore         bool          `env:"RESTORE"`
+	Endpoint              string `env:"ADDRESS"`
+	StoreInterval         string `env:"STORE_INTERVAL"`
+	FileStoragePath       string `env:"FILE_STORAGE_PATH"`
+	Restore               bool   `env:"RESTORE"`
+	StoreIntervalDuration time.Duration
 }
 
 func LoadAgentConfig() *AgentConfig {
@@ -100,21 +101,20 @@ func LoadServerConfig() *ServerConfig {
 	if err != nil {
 		log.Printf("err: while parsing default store interval in config")
 		storeIntervalDuration = 300
-
 	}
 
 	restoreValue, err := strconv.ParseBool(defaultRestore)
 	if err != nil {
 		log.Printf("err: while parsing default restore value in config")
 		restoreValue = true
-
 	}
 
 	appConfig := &ServerConfig{
-		Endpoint:        defaultEndpoint,
-		StoreInterval:   time.Duration(storeIntervalDuration) * time.Second,
-		FileStoragePath: defaultFileStoragePath,
-		Restore:         restoreValue,
+		Endpoint:              defaultEndpoint,
+		StoreInterval:         defaultStoreInterval,
+		StoreIntervalDuration: time.Duration(storeIntervalDuration) * time.Second,
+		FileStoragePath:       defaultFileStoragePath,
+		Restore:               restoreValue,
 	}
 
 	endpoint := flag.String("a", defaultEndpoint, "endpoint address")
@@ -129,18 +129,19 @@ func LoadServerConfig() *ServerConfig {
 	}
 
 	if *storeInterval != "" {
+		appConfig.StoreInterval = *storeInterval
 		parseStoreInterval, err := strconv.Atoi(*storeInterval)
 		if err != nil {
 			log.Printf("err: converting store interval to int: %v", err)
 		} else {
-			appConfig.StoreInterval = time.Duration(parseStoreInterval) * time.Second
+			appConfig.StoreIntervalDuration = time.Duration(parseStoreInterval) * time.Second
 		}
 	}
 
 	if *restore != "" {
 		parseRestore, err := strconv.ParseBool(*restore)
 		if err != nil {
-			log.Printf("err: converting restore valie to bool: %v", err)
+			log.Printf("err: converting restore value to bool: %v", err)
 		} else {
 			appConfig.Restore = parseRestore
 		}
@@ -153,12 +154,22 @@ func LoadServerConfig() *ServerConfig {
 		log.Printf("err: parsing env variables: %v", err)
 	}
 
+	if appConfig.StoreInterval != "" {
+		parseStoreInterval, err := strconv.Atoi(appConfig.StoreInterval)
+		if err != nil {
+			log.Printf("err: converting store interval from env to int: %v", err)
+		} else {
+			appConfig.StoreIntervalDuration = time.Duration(parseStoreInterval) * time.Second
+		}
+	}
+
 	log.Printf("Starting metrics server on %s", appConfig.Endpoint)
 	log.Printf("Update metrics: POST http://%s/update/<type>/<name>/<value>", appConfig.Endpoint)
 	log.Printf("Get metric value: GET http://%s/value/<type>/<name>", appConfig.Endpoint)
 	log.Printf("View all metrics: GET http://%s/debug", appConfig.Endpoint)
-	log.Printf("Storage Interval: %v", appConfig.StoreInterval)
+	log.Printf("Storage Interval: %v", appConfig.StoreIntervalDuration)
 	log.Printf("File Storage Path: %v", appConfig.FileStoragePath)
 	log.Printf("Restore value: %v", appConfig.Restore)
+
 	return appConfig
 }

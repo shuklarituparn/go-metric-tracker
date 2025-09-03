@@ -17,8 +17,12 @@ func NewRouter() *gin.Engine {
 	return CreateRouter(storage)
 }
 func NewRouterWithFS(cfg *config.ServerConfig) *gin.Engine {
-	storage := repository.NewFileStorage(cfg.FileStoragePath, cfg.StoreInterval, cfg.Restore)
+	storage := repository.NewFileStorage(cfg.FileStoragePath, cfg.StoreIntervalDuration, cfg.Restore)
 	router := CreateRouter(storage)
+	if cfg.StoreIntervalDuration > 0 {
+		storage.AutoSave()
+	}
+
 	return router
 }
 
