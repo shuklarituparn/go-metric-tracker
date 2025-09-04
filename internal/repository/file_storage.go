@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -14,22 +15,24 @@ import (
 
 type FileStorage struct {
 	*MemStorage
-	FilePath      string
-	StoreInterval time.Duration
-	Restore       bool
-	SyncWrite     bool
-	StopChan      chan struct{}
-	MU            sync.RWMutex
+	filePath      string
+	storeInterval time.Duration
+	syncWrite     bool
+	mu            sync.RWMutex
+	ctx           context.Context
+	cancel        context.CancelFunc
 }
 
 func NewFileStorage(filePath string, storeInterval time.Duration, restore bool) *FileStorage {
 	memStorage := NewMemStorage()
+	ctx, cancel := context.WithCancel(context.Background())
 	filestorage := &FileStorage{
 		MemStorage:    memStorage,
-		FilePath:      filePath,
-		StoreInterval: storeInterval,
-		SyncWrite:     storeInterval == 0,
-		StopChan:      make(chan struct{}),
+		filePath:      filePath,
+		storeInterval: storeInterval,
+		syncWrite:     storeInterval == 0,
+		ctx:           ctx,
+		cancel:        cancel,
 	}
 
 	if restore {
@@ -46,10 +49,10 @@ func NewFileStorage(filePath string, storeInterval time.Duration, restore bool) 
 }
 
 func (fs *FileStorage) LoadFromFile() error {
-	data, err := os.ReadFile(fs.FilePath)
+	data, err := os.ReadFile(fs.filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			log.Printf("file with the metrics doesnt exists: %s: %v", fs.FilePath, err)
+			log.Printf("file with the metrics doesnt exists: %s: %v", fs.filePath, err)
 			return nil
 		}
 		return fmt.Errorf("problem opening file: %w", err)
@@ -58,8 +61,8 @@ func (fs *FileStorage) LoadFromFile() error {
 	if err := json.Unmarshal(data, &metrics); err != nil {
 		return fmt.Errorf("problem unmarshalling metrics: %w", err)
 	}
-	fs.MU.Lock()
-	defer fs.MU.Unlock()
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
 
 	fs.counters = make(map[string]int64)
 	fs.gauges = make(map[string]float64)
@@ -78,98 +81,98 @@ func (fs *FileStorage) LoadFromFile() error {
 		}
 
 	}
-	log.Printf("loaded %d metrics from the file: %s", len(metrics), fs.FilePath)
+	log.Printf("loaded %d metrics from the file: %s", len(metrics), fs.filePath)
 	return nil
 }
 
 func (fs *FileStorage) SaveToFile() error {
-	fs.MU.Lock()
+	fs.mu.Lock()
 	metrics := fs.MemStorage.GetAllMetrics()
-	fs.MU.Unlock()
+	fs.mu.Unlock()
 
 	data, err := json.MarshalIndent(metrics, "", " ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal metrics: %w", err)
 	}
-	if err := os.MkdirAll(filepath.Dir(fs.FilePath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(fs.filePath), 0755); err != nil {
 		return fmt.Errorf("failed to create dir: %w", err)
 	}
-	tempfile := fs.FilePath + ".tmp"
+	tempfile := fs.filePath + ".tmp"
 	if err := os.WriteFile(tempfile, data, 0644); err != nil {
 		return fmt.Errorf("failed to write to file: %w", err)
 	}
 
-	if err := os.Rename(tempfile, fs.FilePath); err != nil {
+	if err := os.Rename(tempfile, fs.filePath); err != nil {
 		return fmt.Errorf("failed to rename temp file: %w", err)
 	}
 
-	log.Printf("metrics saved to file: %s", fs.FilePath)
+	log.Printf("metrics saved to file: %s", fs.filePath)
 	return nil
 }
 
 func (fs *FileStorage) UpdateGauge(name string, value float64) error {
-	fs.MU.Lock()
+	fs.mu.Lock()
 	err := fs.MemStorage.UpdateGauge(name, value)
-	fs.MU.Unlock()
+	fs.mu.Unlock()
 	if err != nil {
 		return err
 	}
 
-	if fs.SyncWrite {
+	if fs.syncWrite {
 		return fs.SaveToFile()
 	}
 	return nil
 }
 
 func (fs *FileStorage) UpdateCounter(name string, value int64) error {
-	fs.MU.Lock()
+	fs.mu.Lock()
 	err := fs.MemStorage.UpdateCounter(name, value)
-	fs.MU.Unlock()
+	fs.mu.Unlock()
 
 	if err != nil {
 		return err
 	}
 
-	if fs.SyncWrite {
+	if fs.syncWrite {
 		return fs.SaveToFile()
 	}
 	return nil
 }
 
 func (fs *FileStorage) GetCounter(name string) (int64, bool) {
-	fs.MU.RLock()
-	defer fs.MU.RUnlock()
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
 	return fs.MemStorage.GetCounter(name)
 }
 
 func (fs *FileStorage) GetGauge(name string) (float64, bool) {
-	fs.MU.RLock()
-	defer fs.MU.RUnlock()
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
 	return fs.MemStorage.GetGauge(name)
 }
 
 func (fs *FileStorage) GetMetric(name string) (*models.Metrics, bool) {
-	fs.MU.RLock()
-	defer fs.MU.RUnlock()
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
 	return fs.MemStorage.GetMetric(name)
 }
 
 func (fs *FileStorage) GetAllMetrics() []models.Metrics {
-	fs.MU.RLock()
-	defer fs.MU.RUnlock()
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
 	return fs.MemStorage.GetAllMetrics()
 }
 
 func (fs *FileStorage) AutoSave() {
 	go func() {
-		ticker := time.NewTicker(fs.StoreInterval)
+		ticker := time.NewTicker(fs.storeInterval)
 		for {
 			select {
 			case <-ticker.C:
 				if err := fs.SaveToFile(); err != nil {
 					log.Printf("problem while saving to file:%s", err)
 				}
-			case <-fs.StopChan:
+			case <-fs.ctx.Done():
 				if err := fs.SaveToFile(); err != nil {
 					log.Printf("problem while saving to file:%s", err)
 				}
@@ -181,8 +184,6 @@ func (fs *FileStorage) AutoSave() {
 }
 
 func (fs *FileStorage) Close() error {
-	if !fs.SyncWrite {
-		close(fs.StopChan)
-	}
+	fs.cancel()
 	return fs.SaveToFile()
 }

@@ -17,13 +17,15 @@ func main() {
 	cfg := config.LoadAgentConfig()
 	storage := repository.NewMemStorage()
 
-	metricCollector := agent.NewMetricCollector(cfg.PollInterval, storage)
+	metricCollector := agent.NewMetricCollector(cfg.PollInterval)
 	metricCollector.Start()
+	storageSender := agent.NewStorageSender(metricCollector, storage, cfg.PollInterval)
+	storageSender.Start()
+
 	time.Sleep(2 * time.Second)
 	fullendpoint := fmt.Sprintf("http://%s", cfg.Endpoint)
-
-	metricSender := agent.NewSender(fullendpoint, cfg.ReportInterval, storage)
-	metricSender.Start()
+	serverSender := agent.NewSender(fullendpoint, cfg.ReportInterval, storage)
+	serverSender.Start()
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
@@ -31,5 +33,5 @@ func main() {
 	<-sig
 	log.Println("Shutting down agent...")
 
-	metricSender.SendMetrics()
+	serverSender.SendMetrics()
 }

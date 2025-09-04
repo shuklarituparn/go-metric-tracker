@@ -13,6 +13,22 @@ import (
 	"github.com/shuklarituparn/go-metric-tracker/internal/utils"
 )
 
+type StorageSender interface {
+	Start()
+	SendToStorage() error
+}
+type ServerSender interface {
+	Start()
+	SendMetrics()
+}
+
+type MetricStorageSender struct {
+	collector Collector
+	storage   repository.Storage
+	ticker    *time.Ticker
+	interval  time.Duration
+}
+
 type Sender struct {
 	client         *http.Client
 	serverAddress  string
@@ -21,7 +37,55 @@ type Sender struct {
 	ticker         *time.Ticker
 }
 
-func NewSender(serverAddress string, reportInterval time.Duration, storage repository.Storage) *Sender {
+func NewStorageSender(collector Collector, storage repository.Storage, interval time.Duration) StorageSender {
+	return &MetricStorageSender{
+		collector: collector,
+		storage:   storage,
+		interval:  interval,
+	}
+}
+
+func (mss *MetricStorageSender) Start() {
+	mss.ticker = time.NewTicker(mss.interval)
+
+	go func() {
+		if err := mss.SendToStorage(); err != nil {
+			log.Printf("problem sending metric to storage: %v", err)
+		}
+		for range mss.ticker.C {
+			if err := mss.SendToStorage(); err != nil {
+				log.Printf("error sending metrics to storage: %v", err)
+			}
+		}
+	}()
+
+}
+
+func (mss *MetricStorageSender) SendToStorage() error {
+
+	metrics := mss.collector.GetMetrics()
+
+	for _, metric := range metrics {
+		switch metric.MType {
+		case models.Gauge:
+			if metric.Value != nil {
+				if err := mss.storage.UpdateGauge(metric.ID, *metric.Value); err != nil {
+					return fmt.Errorf("error updating gauge metric %s: %w", metric.ID, err)
+				}
+			}
+		case models.Counter:
+			if metric.Delta != nil {
+				if err := mss.storage.UpdateCounter(metric.ID, *metric.Delta); err != nil {
+					return fmt.Errorf("error updating counter metric %s: %w", metric.ID, err)
+				}
+			}
+		}
+	}
+	return nil
+
+}
+
+func NewSender(serverAddress string, reportInterval time.Duration, storage repository.Storage) ServerSender {
 	return &Sender{
 		client:         &http.Client{},
 		serverAddress:  serverAddress,
