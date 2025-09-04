@@ -52,7 +52,7 @@ func CreateGuageMetric(id string, value float64) *models.Metrics {
 func CreateCounterMetric(id string, value int64) *models.Metrics {
 	return &models.Metrics{
 		ID:    id,
-		MType: models.Gauge,
+		MType: models.Counter,
 		Delta: &value,
 	}
 }
