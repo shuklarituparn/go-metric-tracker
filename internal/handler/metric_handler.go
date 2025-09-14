@@ -179,7 +179,8 @@ func (h *MetricsHandler) DBHandler(c *gin.Context) {
 			c.Status(http.StatusInternalServerError)
 			return
 		}
+		c.Status(http.StatusOK)
+		return
 	}
-	c.Status(http.StatusOK)
-
+	c.Status(http.StatusInternalServerError)
 }
