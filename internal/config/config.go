@@ -122,7 +122,7 @@ func LoadServerConfig() *ServerConfig {
 		DatabaseDSN:           "",
 	}
 
-	endpoint := flag.String("a", defaultEndpoint, "endpoint address")
+	endpoint := flag.String("a", "", "endpoint address")
 	storeInterval := flag.String("i", "", "store interval (seconds)")
 	fileStoragePath := flag.String("f", "", "file storage path")
 	restore := flag.String("r", "", "restore from file (true/false)")
@@ -152,6 +152,7 @@ func LoadServerConfig() *ServerConfig {
 			appConfig.Restore = parseRestore
 		}
 	}
+	
 	if *fileStoragePath != "" {
 		appConfig.FileStoragePath = *fileStoragePath
 	}
@@ -177,8 +178,13 @@ func LoadServerConfig() *ServerConfig {
 			appConfig.StoreIntervalDuration = time.Duration(parseStoreInterval) * time.Second
 		}
 	}
+
 	if appConfig.DBConfig.DSN != "" {
-		log.Printf("Database DSN configured: %s", appConfig.DBConfig.DSN)
+		maskedDSN := appConfig.DBConfig.DSN
+		if len(maskedDSN) > 20 {
+			maskedDSN = "***" + maskedDSN[len(maskedDSN)-20:]
+		}
+		log.Printf("Database DSN configured: %s", maskedDSN)
 	} else {
 		log.Printf("No database DSN configured, using file storage")
 	}

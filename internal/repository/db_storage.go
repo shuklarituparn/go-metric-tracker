@@ -23,7 +23,7 @@ func NewDBStorage(db *sql.DB) (*DBStorage, error) {
 	return storage, nil
 }
 
-func (db *DBStorage) initSchema() error {
+func (ds *DBStorage) initSchema() error {
 	const query = `
 	CREATE TABLE IF NOT EXISTS metrics(
 	id VARCHAR(255) PRIMARY KEY,
@@ -36,7 +36,7 @@ func (db *DBStorage) initSchema() error {
 	CREATE INDEX IF NOT EXISTS idx_metric_type ON metrics(type);
 	`
 
-	val, err := db.DB.Exec(query)
+	val, err := ds.DB.Exec(query)
 	log.Printf("got following result: %v", val)
 	return err
 }
@@ -150,6 +150,7 @@ func (ds *DBStorage) GetAllMetrics() []models.Metrics {
 			log.Printf("error: error closing rows: %v", err)
 		}
 	}()
+	
 	for rows.Next() {
 		var metric models.Metrics
 		var delta sql.NullInt64
@@ -167,10 +168,18 @@ func (ds *DBStorage) GetAllMetrics() []models.Metrics {
 		}
 		metrics = append(metrics, metric)
 	}
+	
+	if err := rows.Err(); err != nil {
+		log.Printf("Error during rows iteration: %v", err)
+	}
+	
 	return metrics
-
 }
 
 func (ds *DBStorage) Close() error {
 	return ds.DB.Close()
+}
+
+func (ds *DBStorage) Ping() error {
+	return ds.DB.Ping()
 }
