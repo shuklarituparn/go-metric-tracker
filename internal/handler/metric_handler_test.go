@@ -19,7 +19,7 @@ func setupTestRouter(storage repository.Storage) *gin.Engine {
 	router.RedirectTrailingSlash = false
 	router.RedirectFixedPath = false
 
-	h := NewMetricHandler(storage, nil) // pass nil DB
+	h := NewMetricHandler(storage)
 
 	router.Use(func(c *gin.Context) {
 		c.Next()

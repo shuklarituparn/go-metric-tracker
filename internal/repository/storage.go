@@ -16,6 +16,9 @@ type Storage interface {
 	GetMetric(name string) (*models.Metrics, bool)
 }
 
+type Pinger interface {
+	Ping() error
+}
 type MemStorage struct {
 	mu       sync.RWMutex
 	gauges   map[string]float64
