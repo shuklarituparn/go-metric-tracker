@@ -12,14 +12,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func setupTestRouter(storage *repository.MemStorage) *gin.Engine {
+func setupTestRouter(storage repository.Storage) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 
 	router.RedirectTrailingSlash = false
 	router.RedirectFixedPath = false
 
-	handler := NewMetricHandler(storage)
+	h := NewMetricHandler(storage, nil) // pass nil DB
 
 	router.Use(func(c *gin.Context) {
 		c.Next()
@@ -27,16 +27,15 @@ func setupTestRouter(storage *repository.MemStorage) *gin.Engine {
 		if c.Writer.Status() == http.StatusNotFound {
 			if c.Request.Method != "POST" &&
 				(c.Request.URL.Path == "/update/" ||
-					len(c.Request.URL.Path) > 8 && c.Request.URL.Path[:8] == "/update/") {
+					(len(c.Request.URL.Path) > 8 && c.Request.URL.Path[:8] == "/update/")) {
 				c.AbortWithStatus(http.StatusMethodNotAllowed)
 				return
 			}
 		}
 	})
 
-	router.POST("/update/:type/:name/:value", handler.UpdateMetric)
-
-	router.GET("/value/:type/:name", handler.GetMetric)
+	router.POST("/update/:type/:name/:value", h.UpdateMetric)
+	router.GET("/value/:type/:name", h.GetMetric)
 
 	router.POST("/update/:type/:name/", func(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
@@ -64,14 +63,14 @@ func TestMetricsHandler_UpdateMetric(t *testing.T) {
 		method         string
 		url            string
 		expectedStatus int
-		checkValue     func(storage *repository.MemStorage) bool
+		checkValue     func(storage repository.Storage) bool
 	}{
 		{
 			name:           "Correct gauge metric",
 			method:         http.MethodPost,
 			url:            "/update/gauge/temperature/30.7",
 			expectedStatus: http.StatusOK,
-			checkValue: func(storage *repository.MemStorage) bool {
+			checkValue: func(storage repository.Storage) bool {
 				v, ok := storage.GetGauge("temperature")
 				return ok && v == 30.7
 			},
@@ -81,7 +80,7 @@ func TestMetricsHandler_UpdateMetric(t *testing.T) {
 			method:         http.MethodPost,
 			url:            "/update/counter/test/100",
 			expectedStatus: http.StatusOK,
-			checkValue: func(storage *repository.MemStorage) bool {
+			checkValue: func(storage repository.Storage) bool {
 				v, ok := storage.GetCounter("test")
 				return ok && v == 100
 			},
@@ -91,7 +90,7 @@ func TestMetricsHandler_UpdateMetric(t *testing.T) {
 			method:         http.MethodPost,
 			url:            "/update/counter/accumulate/50",
 			expectedStatus: http.StatusOK,
-			checkValue: func(storage *repository.MemStorage) bool {
+			checkValue: func(storage repository.Storage) bool {
 				v, ok := storage.GetCounter("accumulate")
 				return ok && v == 50
 			},
@@ -101,7 +100,7 @@ func TestMetricsHandler_UpdateMetric(t *testing.T) {
 			method:         http.MethodGet,
 			url:            "/update/gauge/temperature/31",
 			expectedStatus: http.StatusMethodNotAllowed,
-			checkValue: func(storage *repository.MemStorage) bool {
+			checkValue: func(storage repository.Storage) bool {
 				return true
 			},
 		},
@@ -110,7 +109,7 @@ func TestMetricsHandler_UpdateMetric(t *testing.T) {
 			method:         http.MethodPost,
 			url:            "/update/gauge/large/999999999.999999",
 			expectedStatus: http.StatusOK,
-			checkValue: func(storage *repository.MemStorage) bool {
+			checkValue: func(storage repository.Storage) bool {
 				v, ok := storage.GetGauge("large")
 				return ok && v == 999999999.999999
 			},
@@ -120,7 +119,7 @@ func TestMetricsHandler_UpdateMetric(t *testing.T) {
 			method:         http.MethodPost,
 			url:            "/update/counter/bigcount/9999999999",
 			expectedStatus: http.StatusOK,
-			checkValue: func(storage *repository.MemStorage) bool {
+			checkValue: func(storage repository.Storage) bool {
 				v, ok := storage.GetCounter("bigcount")
 				return ok && v == 9999999999
 			},
@@ -130,7 +129,7 @@ func TestMetricsHandler_UpdateMetric(t *testing.T) {
 			method:         http.MethodPost,
 			url:            "/update/metric/test2/100",
 			expectedStatus: http.StatusBadRequest,
-			checkValue: func(storage *repository.MemStorage) bool {
+			checkValue: func(storage repository.Storage) bool {
 				return true
 			},
 		},
@@ -139,7 +138,7 @@ func TestMetricsHandler_UpdateMetric(t *testing.T) {
 			method:         http.MethodPost,
 			url:            "/update/gauge//30.7",
 			expectedStatus: http.StatusNotFound,
-			checkValue: func(storage *repository.MemStorage) bool {
+			checkValue: func(storage repository.Storage) bool {
 				return true
 			},
 		},
@@ -148,7 +147,7 @@ func TestMetricsHandler_UpdateMetric(t *testing.T) {
 			method:         http.MethodPost,
 			url:            "/update/gauge/temperature/",
 			expectedStatus: http.StatusBadRequest,
-			checkValue: func(storage *repository.MemStorage) bool {
+			checkValue: func(storage repository.Storage) bool {
 				return true
 			},
 		},
@@ -157,7 +156,7 @@ func TestMetricsHandler_UpdateMetric(t *testing.T) {
 			method:         http.MethodPost,
 			url:            "/update/gauge/temperature/invalid",
 			expectedStatus: http.StatusBadRequest,
-			checkValue: func(storage *repository.MemStorage) bool {
+			checkValue: func(storage repository.Storage) bool {
 				_, ok := storage.GetGauge("temperature")
 				return !ok
 			},
@@ -167,7 +166,7 @@ func TestMetricsHandler_UpdateMetric(t *testing.T) {
 			method:         http.MethodPost,
 			url:            "/update/counter/requests/10.5",
 			expectedStatus: http.StatusBadRequest,
-			checkValue: func(storage *repository.MemStorage) bool {
+			checkValue: func(storage repository.Storage) bool {
 				return true
 			},
 		},
@@ -176,7 +175,7 @@ func TestMetricsHandler_UpdateMetric(t *testing.T) {
 			method:         http.MethodPost,
 			url:            "/update/gauge/balance/-15.5",
 			expectedStatus: http.StatusOK,
-			checkValue: func(storage *repository.MemStorage) bool {
+			checkValue: func(storage repository.Storage) bool {
 				v, ok := storage.GetGauge("balance")
 				return ok && v == -15.5
 			},
@@ -186,7 +185,7 @@ func TestMetricsHandler_UpdateMetric(t *testing.T) {
 			method:         http.MethodPost,
 			url:            "/update/counter/debt/-50",
 			expectedStatus: http.StatusOK,
-			checkValue: func(storage *repository.MemStorage) bool {
+			checkValue: func(storage repository.Storage) bool {
 				v, ok := storage.GetCounter("debt")
 				return ok && v == -50
 			},
@@ -195,7 +194,7 @@ func TestMetricsHandler_UpdateMetric(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			storage := repository.NewMemStorage()
+			var storage repository.Storage = repository.NewMemStorage()
 			router := setupTestRouter(storage)
 
 			req := httptest.NewRequest(test.method, test.url, nil)
@@ -212,14 +211,14 @@ func TestMetricsHandler_UpdateMetric(t *testing.T) {
 func TestMetricsHandler_GetMetric(t *testing.T) {
 	tests := []struct {
 		name           string
-		setupMetrics   func(storage *repository.MemStorage)
+		setupMetrics   func(storage repository.Storage)
 		url            string
 		expectedStatus int
 		expectedBody   string
 	}{
 		{
 			name: "Get existing gauge metric",
-			setupMetrics: func(storage *repository.MemStorage) {
+			setupMetrics: func(storage repository.Storage) {
 				if err := storage.UpdateGauge("temperature", 25.5); err != nil {
 					log.Printf("err: problem updating the gauge")
 				}
@@ -230,7 +229,7 @@ func TestMetricsHandler_GetMetric(t *testing.T) {
 		},
 		{
 			name: "Get existing counter metric",
-			setupMetrics: func(storage *repository.MemStorage) {
+			setupMetrics: func(storage repository.Storage) {
 				if err := storage.UpdateCounter("requests", 100); err != nil {
 					log.Printf("err: problem updating the counter")
 				}
@@ -241,21 +240,21 @@ func TestMetricsHandler_GetMetric(t *testing.T) {
 		},
 		{
 			name:           "Get non-existing gauge metric",
-			setupMetrics:   func(storage *repository.MemStorage) {},
+			setupMetrics:   func(storage repository.Storage) {},
 			url:            "/value/gauge/nonexistent",
 			expectedStatus: http.StatusNotFound,
 			expectedBody:   "Metric not found",
 		},
 		{
 			name:           "Get non-existing counter metric",
-			setupMetrics:   func(storage *repository.MemStorage) {},
+			setupMetrics:   func(storage repository.Storage) {},
 			url:            "/value/counter/nonexistent",
 			expectedStatus: http.StatusNotFound,
 			expectedBody:   "Metric not found",
 		},
 		{
 			name:           "Invalid metric type",
-			setupMetrics:   func(storage *repository.MemStorage) {},
+			setupMetrics:   func(storage repository.Storage) {},
 			url:            "/value/invalid/test",
 			expectedStatus: http.StatusBadRequest,
 			expectedBody:   "Invalid metric type",
@@ -264,7 +263,7 @@ func TestMetricsHandler_GetMetric(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			storage := repository.NewMemStorage()
+			var storage repository.Storage = repository.NewMemStorage()
 			test.setupMetrics(storage)
 			router := setupTestRouter(storage)
 
@@ -280,7 +279,7 @@ func TestMetricsHandler_GetMetric(t *testing.T) {
 }
 
 func TestMetricsHandler_CounterAccumulation(t *testing.T) {
-	storage := repository.NewMemStorage()
+	var storage repository.Storage = repository.NewMemStorage()
 	router := setupTestRouter(storage)
 
 	req1 := httptest.NewRequest(http.MethodPost, "/update/counter/visits/10", nil)
@@ -330,7 +329,7 @@ func TestMetricsHandler_CounterAccumulation(t *testing.T) {
 }
 
 func TestMetricsHandler_GaugeOverwrite(t *testing.T) {
-	storage := repository.NewMemStorage()
+	var storage repository.Storage = repository.NewMemStorage()
 	router := setupTestRouter(storage)
 
 	req1 := httptest.NewRequest(http.MethodPost, "/update/gauge/temp/20.5", nil)

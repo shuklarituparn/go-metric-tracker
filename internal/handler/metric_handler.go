@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"database/sql"
 	"log"
 	"net/http"
 	"strconv"
@@ -12,11 +13,13 @@ import (
 
 type MetricsHandler struct {
 	storage repository.Storage
+	DB      *sql.DB
 }
 
-func NewMetricHandler(storage repository.Storage) *MetricsHandler {
+func NewMetricHandler(storage repository.Storage, db *sql.DB) *MetricsHandler {
 	return &MetricsHandler{
 		storage: storage,
+		DB:      db,
 	}
 }
 
@@ -170,4 +173,17 @@ func (h *MetricsHandler) GetMetricJSON(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, storedMetric)
+}
+
+func (h *MetricsHandler) DBHandler(c *gin.Context) {
+	if h.DB == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "no database configured"})
+		return
+	}
+	if err := h.DB.Ping(); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "database unreachable", "error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+
 }

@@ -1,6 +1,7 @@
 package router
 
 import (
+	"database/sql"
 	"log"
 	"net/http"
 
@@ -12,13 +13,9 @@ import (
 	"go.uber.org/zap"
 )
 
-func NewRouter() *gin.Engine {
-	storage := repository.NewMemStorage()
-	return CreateRouter(storage)
-}
 func NewRouterWithFS(cfg *config.ServerConfig) *gin.Engine {
 	storage := repository.NewFileStorage(cfg.FileStoragePath, cfg.StoreIntervalDuration, cfg.Restore)
-	router := CreateRouter(storage)
+	router := CreateRouter(storage, cfg)
 	if cfg.StoreIntervalDuration > 0 {
 		storage.AutoSave()
 	}
@@ -26,9 +23,17 @@ func NewRouterWithFS(cfg *config.ServerConfig) *gin.Engine {
 	return router
 }
 
-func CreateRouter(storage repository.Storage) *gin.Engine {
-	metricsHandler := handler.NewMetricHandler(storage)
+func CreateRouter(storage repository.Storage, cfg *config.ServerConfig) *gin.Engine {
+	var db *sql.DB
 
+	if cfg.DatabaseDSN != "" && cfg.DBConfig.DSN != "" {
+		var err error
+		db, err = cfg.DBConfig.Connect()
+		if err != nil {
+			log.Printf("warning: failed to connect DB: %v (continuing without DB)", err)
+		}
+	}
+	metricsHandler := handler.NewMetricHandler(storage, db)
 	logger, err := zap.NewProduction()
 	if err != nil {
 		log.Fatal("err: problem starting logger")
@@ -53,6 +58,7 @@ func CreateRouter(storage repository.Storage) *gin.Engine {
 	router.POST("/update/:type/:name/:value", metricsHandler.UpdateMetric)
 	router.GET("/value/:type/:name", metricsHandler.GetMetric)
 	router.GET("/", handler.DefaultHandle)
+	router.GET("/ping", metricsHandler.DBHandler)
 	router.POST("/update/:type/:name/", func(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 	})

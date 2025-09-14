@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/caarlos0/env/v6"
+	"github.com/shuklarituparn/go-metric-tracker/internal/config/db"
 )
 
 const (
@@ -35,6 +36,8 @@ type ServerConfig struct {
 	FileStoragePath       string `env:"FILE_STORAGE_PATH"`
 	Restore               bool   `env:"RESTORE"`
 	StoreIntervalDuration time.Duration
+	DBConfig              *db.Config
+	DatabaseDSN           string `env:"DATABASE_DSN"`
 }
 
 func LoadAgentConfig() *AgentConfig {
@@ -115,12 +118,15 @@ func LoadServerConfig() *ServerConfig {
 		StoreIntervalDuration: time.Duration(storeIntervalDuration) * time.Second,
 		FileStoragePath:       defaultFileStoragePath,
 		Restore:               restoreValue,
+		DBConfig:              db.NewDefaultConfig(),
+		DatabaseDSN:           "",
 	}
 
 	endpoint := flag.String("a", defaultEndpoint, "endpoint address")
 	storeInterval := flag.String("i", "", "store interval (seconds)")
 	fileStoragePath := flag.String("f", "", "file storage path")
 	restore := flag.String("r", "", "restore from file (true/false)")
+	databaseDSN := flag.String("d", "", "database DSN")
 
 	flag.Parse()
 
@@ -150,8 +156,17 @@ func LoadServerConfig() *ServerConfig {
 		appConfig.FileStoragePath = *fileStoragePath
 	}
 
+	if *databaseDSN != "" {
+		appConfig.DatabaseDSN = *databaseDSN
+		appConfig.DBConfig.DSN = *databaseDSN
+	}
+
 	if err := env.Parse(appConfig); err != nil {
 		log.Printf("err: parsing env variables: %v", err)
+	}
+
+	if appConfig.DatabaseDSN != "" {
+		appConfig.DBConfig.DSN = appConfig.DatabaseDSN
 	}
 
 	if appConfig.StoreInterval != "" {
@@ -161,6 +176,11 @@ func LoadServerConfig() *ServerConfig {
 		} else {
 			appConfig.StoreIntervalDuration = time.Duration(parseStoreInterval) * time.Second
 		}
+	}
+	if appConfig.DBConfig.DSN != "" {
+		log.Printf("Database DSN configured: %s", appConfig.DBConfig.DSN)
+	} else {
+		log.Printf("No database DSN configured, using file storage")
 	}
 
 	log.Printf("Starting metrics server on %s", appConfig.Endpoint)
