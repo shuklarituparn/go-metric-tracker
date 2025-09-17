@@ -166,14 +166,14 @@ func (s *Sender) SendMetricsBatch() error {
 		return fmt.Errorf("error: there are no metrics")
 
 	}
-	metricsJson, err := json.Marshal(metrics)
+	metricJSON, err := json.Marshal(metrics)
 	if err != nil {
 		s.SendMetrics()
 		return fmt.Errorf("problem marshalling metrics: %v", err)
 	}
-	compressedData, err := utils.CompressedData(metricsJson)
+	compressedData, err := utils.CompressedData(metricJSON)
 	if err != nil {
-		if err := s.sendBatchUncompressed(metricsJson); err != nil {
+		if err := s.sendBatchUncompressed(metricJSON); err != nil {
 			return fmt.Errorf("error: problem sending uncompressed metrics: %v", err)
 		}
 		return fmt.Errorf("error: problem compressing the metrics: %v", err)
