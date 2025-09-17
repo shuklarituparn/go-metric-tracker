@@ -182,7 +182,33 @@ func (fs *FileStorage) AutoSave() {
 
 	}()
 }
+func (fs *FileStorage) UpdateBatch(metrics []models.Metrics) error {
+	if len(metrics) == 0 {
+		return nil
+	}
 
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	for _, metric := range metrics {
+		switch metric.MType {
+		case models.Gauge:
+			if metric.Value != nil {
+				fs.gauges[metric.ID] = *metric.Value
+			}
+		case models.Counter:
+			if metric.Delta != nil {
+				fs.counters[metric.ID] += *metric.Delta
+			}
+		}
+	}
+
+	if fs.syncWrite {
+		return fs.SaveToFile()
+	}
+
+	return nil
+}
 func (fs *FileStorage) Close() error {
 	fs.cancel()
 	return fs.SaveToFile()

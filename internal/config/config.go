@@ -152,7 +152,7 @@ func LoadServerConfig() *ServerConfig {
 			appConfig.Restore = parseRestore
 		}
 	}
-	
+
 	if *fileStoragePath != "" {
 		appConfig.FileStoragePath = *fileStoragePath
 	}

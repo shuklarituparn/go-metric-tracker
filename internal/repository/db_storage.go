@@ -150,7 +150,7 @@ func (ds *DBStorage) GetAllMetrics() []models.Metrics {
 			log.Printf("error: error closing rows: %v", err)
 		}
 	}()
-	
+
 	for rows.Next() {
 		var metric models.Metrics
 		var delta sql.NullInt64
@@ -168,11 +168,11 @@ func (ds *DBStorage) GetAllMetrics() []models.Metrics {
 		}
 		metrics = append(metrics, metric)
 	}
-	
+
 	if err := rows.Err(); err != nil {
 		log.Printf("Error during rows iteration: %v", err)
 	}
-	
+
 	return metrics
 }
 
@@ -182,4 +182,82 @@ func (ds *DBStorage) Close() error {
 
 func (ds *DBStorage) Ping() error {
 	return ds.DB.Ping()
+}
+
+func (ds *DBStorage) UpdateBatch(metrics []models.Metrics) error {
+	if len(metrics) == 0 {
+		return nil
+	}
+	tx, err := ds.DB.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction :%w", err)
+	}
+
+	defer func() {
+		if err != nil {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				log.Printf("failed to rollback transaction: %v", err)
+			}
+		}
+	}()
+	gaugeStmt, err := tx.Prepare(`
+			INSERT INTO metrics (id, type, delta, value, updated_at)
+			VALUES ($1, $2, NULL, $3, CURRENT_TIMESTAMP)
+			ON CONFLICT(id) DO UPDATE 
+			SET
+				value = EXCLUDED.value,
+				delta = NULL,
+				type = EXCLUDED.type,
+				updated_at = CURRENT_TIMESTAMP
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to prepare gauge statement: %w", err)
+	}
+	defer func() {
+		if err := gaugeStmt.Close(); err != nil {
+			log.Printf("error: problem closing gauge statement: %v", err)
+		}
+	}()
+
+	counterStatement, err := tx.Prepare(`
+		INSERT INTO metrics (id, type, delta, value, updated_at)
+				VALUES ($1, $2, $3, NULL, CURRENT_TIMESTAMP)
+				ON CONFLICT (id) DO UPDATE
+				SET 
+					delta = COALESCE(metrics.delta, 0) + EXCLUDED.delta,
+					value = NULL,
+					type = EXCLUDED.type,
+					updated_at = CURRENT_TIMESTAMP
+		`)
+	if err != nil {
+		return fmt.Errorf("failed to prepare counter statement: %w", err)
+	}
+	defer func() {
+		if err := counterStatement.Close(); err != nil {
+			log.Printf("error: problem closing counter statement: %v", err)
+		}
+	}()
+
+	for _, metric := range metrics {
+		switch metric.MType {
+		case models.Gauge:
+			if metric.Value != nil {
+				if _, err := gaugeStmt.Exec(metric.ID, models.Gauge, *metric.Value); err != nil {
+					return fmt.Errorf("failed to update gauge %s: %w", metric.ID, err)
+				}
+			}
+		case models.Counter:
+			if metric.Delta != nil {
+				if _, err := counterStatement.Exec(metric.ID, models.Counter, *metric.Delta); err != nil {
+					return fmt.Errorf("failed to update counter %s: %w", metric.ID, err)
+				}
+			}
+		}
+	}
+
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
 }

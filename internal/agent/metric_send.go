@@ -20,6 +20,7 @@ type StorageSender interface {
 type ServerSender interface {
 	Start()
 	SendMetrics()
+	SendMetricsBatch() error
 }
 
 type MetricStorageSender struct {
@@ -35,6 +36,7 @@ type Sender struct {
 	reportInterval time.Duration
 	storage        repository.Storage
 	ticker         *time.Ticker
+	useBatch       bool
 }
 
 func NewStorageSender(collector Collector, storage repository.Storage, interval time.Duration) StorageSender {
@@ -91,6 +93,7 @@ func NewSender(serverAddress string, reportInterval time.Duration, storage repos
 		serverAddress:  serverAddress,
 		reportInterval: reportInterval,
 		storage:        storage,
+		useBatch:       true,
 	}
 }
 
@@ -138,6 +141,71 @@ func (s *Sender) SendMetric(metric models.Metrics) error {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
 	req.Header.Set("Accept-Encoding", "gzip")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("failed to close response body: %v", err)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("server returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+func (s *Sender) SendMetricsBatch() error {
+	metrics := s.storage.GetAllMetrics()
+
+	if len(metrics) == 0 {
+		return fmt.Errorf("error: there are no metrics")
+
+	}
+	metricsJson, err := json.Marshal(metrics)
+	if err != nil {
+		s.SendMetrics()
+		return fmt.Errorf("problem marshalling metrics: %v", err)
+	}
+	compressedData, err := utils.CompressedData(metricsJson)
+	if err != nil {
+		if err := s.sendBatchUncompressed(metricsJson); err != nil {
+			return fmt.Errorf("error: problem sending uncompressed metrics: %v", err)
+		}
+		return fmt.Errorf("error: problem compressing the metrics: %v", err)
+	}
+	url := fmt.Sprintf("%s/updates/", s.serverAddress)
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(compressedData))
+	if err != nil {
+		return fmt.Errorf("error: problem sending the metrics:%v", err)
+	}
+	resp, err := s.client.Do(req)
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("failed to close response body: %v", err)
+		}
+	}()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("error: problem with server code %v", err)
+	}
+
+	log.Printf("Successfully sent %d metrics in batch", len(metrics))
+	return nil
+}
+
+func (s *Sender) sendBatchUncompressed(data []byte) error {
+	url := fmt.Sprintf("%s/updates/", s.serverAddress)
+
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(data))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.client.Do(req)
 	if err != nil {

@@ -121,6 +121,7 @@ func CreateRouter(storage repository.Storage) *gin.Engine {
 	router.Use(middleware.DecompressionMiddleware())
 
 	router.POST("/update/", metricsHandler.UpdateMetricJSON)
+	router.POST("/updates/", metricsHandler.UpdateMetricsBatch)
 	router.POST("/value/", metricsHandler.GetMetricJSON)
 	router.POST("/update/:type/:name/:value", metricsHandler.UpdateMetric)
 	router.GET("/value/:type/:name", metricsHandler.GetMetric)
