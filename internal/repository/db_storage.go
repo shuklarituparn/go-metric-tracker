@@ -7,7 +7,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/muesli/cancelreader"
 	models "github.com/shuklarituparn/go-metric-tracker/internal/model"
 	"github.com/shuklarituparn/go-metric-tracker/internal/retry"
 )
