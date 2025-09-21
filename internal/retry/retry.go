@@ -29,7 +29,6 @@ type RetryableFunc func() error
 
 func ExecuteWithRetry(ctx context.Context, config RetryConfig, fn RetryableFunc) error {
 	var executionError error
-
 	for attempt := 0; attempt < config.MaxAttempts; attempt++ {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -46,11 +45,15 @@ func ExecuteWithRetry(ctx context.Context, config RetryConfig, fn RetryableFunc)
 		}
 
 		if attempt < config.MaxAttempts-1 {
-			interval := config.Intervals[0]
-			if attempt < len(config.Intervals) {
-				interval = config.Intervals[attempt]
+			var interval time.Duration
+			if len(config.Intervals) == 0 {
+				interval = time.Second
 			} else {
-				interval = config.Intervals[len(config.Intervals)-1]
+				idx := attempt
+				if idx >= len(config.Intervals) {
+					idx = len(config.Intervals) - 1
+				}
+				interval = config.Intervals[idx]
 			}
 
 			select {
