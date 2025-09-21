@@ -1,25 +1,37 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
+	"time"
 
+	"github.com/muesli/cancelreader"
 	models "github.com/shuklarituparn/go-metric-tracker/internal/model"
+	"github.com/shuklarituparn/go-metric-tracker/internal/retry"
 )
 
 type DBStorage struct {
-	DB *sql.DB
+	DB          *sql.DB
+	retryConfig retry.RetryConfig
 }
 
 func NewDBStorage(db *sql.DB) (*DBStorage, error) {
 	storage := &DBStorage{
-		DB: db,
-	}
-	if err := storage.initSchema(); err != nil {
-		return nil, fmt.Errorf("error: problem while initializing schema: %w", err)
+		DB:          db,
+		retryConfig: retry.DefaultConfig(),
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	err := retry.ExecuteWithRetry(ctx, storage.retryConfig, func() error {
+		return storage.initSchema()
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error: problem while initializing schema: %w", err)
+	}
 	return storage, nil
 }
 
@@ -40,11 +52,19 @@ func (ds *DBStorage) initSchema() error {
 	log.Printf("got following result: %v", val)
 	return err
 }
-
 func (ds *DBStorage) UpdateGauge(name string, value float64) error {
 	if name == "" {
 		return fmt.Errorf("name can't be empty")
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	return retry.ExecuteWithRetry(ctx, ds.retryConfig, func() error {
+		return ds.updateGaugeInternal(name, value)
+	})
+}
+
+func (ds *DBStorage) updateGaugeInternal(name string, value float64) error {
 	const query = `
 	INSERT INTO metrics (id, type, delta, value, updated_at)
 	VALUES ($1, $2, NULL, $3, CURRENT_TIMESTAMP)
@@ -67,6 +87,17 @@ func (ds *DBStorage) UpdateCounter(name string, inc int64) error {
 	if name == "" {
 		return fmt.Errorf("counter metric name cannot be empty")
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	return retry.ExecuteWithRetry(ctx, ds.retryConfig, func() error {
+		return ds.updateCounterInternal(name, inc)
+	})
+}
+func (ds *DBStorage) updateCounterInternal(name string, inc int64) error {
+	if name == "" {
+		return fmt.Errorf("counter metric name cannot be empty")
+	}
 
 	const q = `
 	INSERT INTO metrics (id, type, delta, value, updated_at)
@@ -82,39 +113,96 @@ func (ds *DBStorage) UpdateCounter(name string, inc int64) error {
 	}
 	return nil
 }
-
 func (ds *DBStorage) GetCounter(name string) (int64, bool) {
+	var value int64
+	var found bool
+
 	if name == "" {
 		return 0, false
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	err := retry.ExecuteWithRetry(ctx, ds.retryConfig, func() error {
+		var err error
+		value, found, err = ds.getCounterInternal(name)
+		return err
+	})
+	if err != nil {
+		log.Printf("Error getting counter %s: %v", name, err)
+		return 0, false
+	}
+	return value, found
+}
+
+func (ds *DBStorage) getCounterInternal(name string) (int64, bool, error) {
+
 	var value sql.NullInt64
 	const query = `SELECT delta FROM metrics WHERE id=$1 and type=$2`
 	err := ds.DB.QueryRow(query, name, models.Counter).Scan(&value)
 
 	if err != nil || !value.Valid {
-		return 0, false
+		return 0, false, err
 	}
-	return value.Int64, true
-
+	return value.Int64, true, nil
 }
 
 func (ds *DBStorage) GetGauge(name string) (float64, bool) {
+	var value float64
+	var found bool
 	if name == "" {
 		return 0, false
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	err := retry.ExecuteWithRetry(ctx, ds.retryConfig, func() error {
+		var err error
+		value, found, err = ds.getGaugeInternal(name)
+		return err
+	})
+	if err != nil {
+		log.Printf("Error getting gauge %s: %v", name, err)
+		return 0, false
+	}
+
+	return value, found
+}
+
+func (ds *DBStorage) getGaugeInternal(name string) (float64, bool, error) {
 	var value sql.NullFloat64
 	const query = `SELECT value FROM metrics WHERE id=$1 and type =$2`
 	err := ds.DB.QueryRow(query, name, models.Gauge).Scan(&value)
 	if err != nil || !value.Valid {
-		return 0, false
+		return 0, false, err
 	}
-	return value.Float64, true
+	return value.Float64, true, nil
 }
 
 func (ds *DBStorage) GetMetric(name string) (*models.Metrics, bool) {
 	if name == "" {
 		return nil, false
 	}
+	ctx, cancel:= context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	
+	var metric *models.Metrics
+	var found bool
+	
+	err:= retry.ExecuteWithRetry(ctx, ds.retryConfig, func() error {
+		var err error
+		metric, found, err= ds.getMetricInternal(name)
+		return err
+	})
+	if err != nil {
+			log.Printf("Error getting metric %s: %v", name, err)
+			return nil, false
+		}
+		
+		return metric, found
+}
+
+func (ds *DBStorage) getMetricInternal(name string) (*models.Metrics, bool, error) {
+
 	var metric models.Metrics
 	var value sql.NullFloat64
 	var delta sql.NullInt64
@@ -123,7 +211,7 @@ func (ds *DBStorage) GetMetric(name string) (*models.Metrics, bool) {
 
 	err := ds.DB.QueryRow(query, name).Scan(&metric.ID, &metric.MType, &delta, &value)
 	if err != nil {
-		return nil, false
+		return nil, false, err
 	}
 
 	if delta.Valid {
@@ -133,17 +221,35 @@ func (ds *DBStorage) GetMetric(name string) (*models.Metrics, bool) {
 	if value.Valid {
 		metric.Value = &value.Float64
 	}
-	return &metric, true
+	return &metric, true, nil
 }
 
 func (ds *DBStorage) GetAllMetrics() []models.Metrics {
+	ctx,cancel:= context.WithTimeout(context.Background(), 30* time.Second)
+	defer cancel()
+	
+	var metrics []models.Metrics
+	err:= retry.ExecuteWithRetry(ctx, ds.retryConfig, func() error {
+		var err error
+		metrics, err= ds.getAllMetricsInternal()
+		return err
+	})
+	if err != nil {
+			log.Printf("Error getting all metrics: %v", err)
+			return []models.Metrics{}
+		}
+	return metrics 
+	
+}
+
+func (ds *DBStorage) getAllMetricsInternal() ([]models.Metrics, error) {
 	var metrics []models.Metrics
 	const query = `SELECT id, type, delta, value FROM metrics ORDER BY id`
 
 	rows, err := ds.DB.Query(query)
 	if err != nil {
 		log.Printf("failed to get all metrics: %v", err)
-		return metrics
+		return metrics, err
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
@@ -173,7 +279,7 @@ func (ds *DBStorage) GetAllMetrics() []models.Metrics {
 		log.Printf("Error during rows iteration: %v", err)
 	}
 
-	return metrics
+	return metrics, nil
 }
 
 func (ds *DBStorage) Close() error {
@@ -188,6 +294,17 @@ func (ds *DBStorage) UpdateBatch(metrics []models.Metrics) error {
 	if len(metrics) == 0 {
 		return nil
 	}
+	ctx, cancel:= context.WithTimeout(context.Background(), 30* time.Second)
+	defer cancel()
+	
+	return retry.ExecuteWithRetry(ctx, ds.retryConfig, func() error {
+		return ds.updateBatchInternal(metrics)
+	})
+
+}
+
+func (ds *DBStorage) updateBatchInternal(metrics []models.Metrics) error {
+
 	tx, err := ds.DB.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction :%w", err)

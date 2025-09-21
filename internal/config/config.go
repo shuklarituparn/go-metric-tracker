@@ -8,6 +8,7 @@ import (
 
 	"github.com/caarlos0/env/v6"
 	"github.com/shuklarituparn/go-metric-tracker/internal/config/db"
+	"github.com/shuklarituparn/go-metric-tracker/internal/retry"
 )
 
 const (
@@ -28,6 +29,7 @@ type AgentConfig struct {
 	Endpoint       string        `env:"ADDRESS"`
 	ReportInterval time.Duration `env:"REPORT_INTERVAL"`
 	PollInterval   time.Duration `env:"POLL_INTERVAL"`
+	RetryConfig    retry.RetryConfig
 }
 
 type ServerConfig struct {
@@ -38,6 +40,7 @@ type ServerConfig struct {
 	StoreIntervalDuration time.Duration
 	DBConfig              *db.Config
 	DatabaseDSN           string `env:"DATABASE_DSN"`
+	RetryConfig           retry.RetryConfig
 }
 
 func LoadAgentConfig() *AgentConfig {
@@ -56,6 +59,7 @@ func LoadAgentConfig() *AgentConfig {
 		Endpoint:       defaultEndpoint,
 		PollInterval:   time.Duration(pollTimeDuration) * time.Second,
 		ReportInterval: time.Duration(reportTimeDuration) * time.Second,
+		RetryConfig:    retry.DefaultConfig(),
 	}
 
 	endpoint := flag.String("a", defaultEndpoint, "endpoint address")
@@ -120,6 +124,7 @@ func LoadServerConfig() *ServerConfig {
 		Restore:               restoreValue,
 		DBConfig:              db.NewDefaultConfig(),
 		DatabaseDSN:           "",
+		RetryConfig:           retry.DefaultConfig(),
 	}
 
 	endpoint := flag.String("a", "", "endpoint address")

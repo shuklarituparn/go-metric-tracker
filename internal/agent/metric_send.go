@@ -2,6 +2,7 @@ package agent
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -10,6 +11,7 @@ import (
 
 	models "github.com/shuklarituparn/go-metric-tracker/internal/model"
 	"github.com/shuklarituparn/go-metric-tracker/internal/repository"
+	"github.com/shuklarituparn/go-metric-tracker/internal/retry"
 	"github.com/shuklarituparn/go-metric-tracker/internal/utils"
 )
 
@@ -37,6 +39,7 @@ type Sender struct {
 	storage        repository.Storage
 	ticker         *time.Ticker
 	useBatch       bool
+	retryConfig    retry.RetryConfig
 }
 
 func NewStorageSender(collector Collector, storage repository.Storage, interval time.Duration) StorageSender {
@@ -94,6 +97,7 @@ func NewSender(serverAddress string, reportInterval time.Duration, storage repos
 		reportInterval: reportInterval,
 		storage:        storage,
 		useBatch:       true,
+		retryConfig:    retry.DefaultConfig(),
 	}
 }
 
@@ -108,17 +112,26 @@ func (s *Sender) Start() {
 
 func (s *Sender) SendMetrics() {
 	metrics := s.storage.GetAllMetrics()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	if len(metrics) == 0 {
 		log.Println("No metrics to send")
 		return
-	}
-
-	for _, metric := range metrics {
-		if err := s.SendMetric(metric); err != nil {
-			log.Printf("Failed to send metric %s: %v", metric.ID, err)
-		}
+	} else {
+		s.sendIndividualMetrics(ctx, metrics)
 	}
 	log.Printf("Sent %d metrics to server", len(metrics))
+}
+
+func (s *Sender) sendIndividualMetrics(ctx context.Context, metrics []models.Metrics) {
+	for _, metric := range metrics {
+		err := retry.ExecuteWithRetry(ctx, s.retryConfig, func() error {
+			return s.SendMetric(metric)
+		})
+		if err != nil {
+			log.Printf("failed to send metric %s after retries: %v", metric.ID, err)
+		}
+	}
 }
 
 func (s *Sender) SendMetric(metric models.Metrics) error {
@@ -159,7 +172,7 @@ func (s *Sender) SendMetric(metric models.Metrics) error {
 	return nil
 }
 
-func (s *Sender) SendMetricsBatch() error {
+func (s *Sender) sendMetricsBatchInternal() error {
 	metrics := s.storage.GetAllMetrics()
 
 	if len(metrics) == 0 {
@@ -197,6 +210,14 @@ func (s *Sender) SendMetricsBatch() error {
 	return nil
 }
 
+func (s *Sender) SendMetricsBatch() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return retry.ExecuteWithRetry(ctx, s.retryConfig, func() error {
+		return s.sendMetricsBatchInternal()
+	})
+
+}
 func (s *Sender) sendBatchUncompressed(data []byte) error {
 	url := fmt.Sprintf("%s/updates/", s.serverAddress)
 
