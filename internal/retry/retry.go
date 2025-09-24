@@ -25,23 +25,26 @@ func DefaultConfig() RetryConfig {
 	}
 }
 
-type RetryableFunc func() error
+func ExecuteWithRetry[T any](ctx context.Context, config RetryConfig, fn func() (T, error)) (T, error) {
+	var zero T
+	if config.MaxAttempts < 1 {
+		config.MaxAttempts = 1
+	}
 
-func ExecuteWithRetry(ctx context.Context, config RetryConfig, fn RetryableFunc) error {
 	var executionError error
 	for attempt := 0; attempt < config.MaxAttempts; attempt++ {
 		if ctx.Err() != nil {
-			return ctx.Err()
+			return zero, ctx.Err()
 		}
 
-		err := fn()
+		result, err := fn()
 		if err == nil {
-			return nil
+			return result, nil
 		}
 		executionError = err
 
 		if !IsRetriableError(err) {
-			return err
+			return zero, err
 		}
 
 		if attempt < config.MaxAttempts-1 {
@@ -58,7 +61,7 @@ func ExecuteWithRetry(ctx context.Context, config RetryConfig, fn RetryableFunc)
 
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				return zero, ctx.Err()
 			case <-time.After(interval):
 				continue
 			}
@@ -66,7 +69,7 @@ func ExecuteWithRetry(ctx context.Context, config RetryConfig, fn RetryableFunc)
 		}
 
 	}
-	return fmt.Errorf("operation failed after %d attempts: %w", config.MaxAttempts, executionError)
+	return zero, fmt.Errorf("operation failed after %d attempts: %w", config.MaxAttempts, executionError)
 }
 
 func IsRetriableError(err error) bool {

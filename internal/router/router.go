@@ -54,7 +54,8 @@ func NewRouterWithStorage(cfg *config.ServerConfig) (*gin.Engine, func()) {
 				}
 			}
 		} else {
-			dbStorage, err := repository.NewDBStorage(db)
+			dbRepository := repository.NewDBRepository(db)
+			dbStorage, err := repository.NewDBStorage(dbRepository)
 			if err != nil {
 				log.Printf("failed to initialize db storage: %v", err)
 				if err := db.Close(); err != nil {
@@ -73,7 +74,7 @@ func NewRouterWithStorage(cfg *config.ServerConfig) (*gin.Engine, func()) {
 				storage = dbStorage
 				cleanup = func() {
 					log.Println("Closing database storage...")
-					if err := dbStorage.Close(); err != nil {
+					if err := dbRepository.Close(); err != nil {
 						log.Printf("Error closing database storage: %v", err)
 					}
 				}

@@ -46,27 +46,19 @@ func (h *MetricsHandler) UpdateMetricsBatch(c *gin.Context) {
 
 		}
 	}
-	if batchUpdater, ok := h.storage.(BatchUpdater); ok {
-		if err := batchUpdater.UpdateBatch(metrics); err != nil {
-			log.Printf("Failed to update batch: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update metrics"})
-			return
-		}
-	} else {
-		for _, metric := range metrics {
-			switch metric.MType {
-			case models.Gauge:
-				if err := h.storage.UpdateGauge(metric.ID, *metric.Value); err != nil {
-					log.Printf("Failed to update gauge %s: %v", metric.ID, err)
-					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-					return
-				}
-			case models.Counter:
-				if err := h.storage.UpdateCounter(metric.ID, *metric.Delta); err != nil {
-					log.Printf("Failed to update counter %s: %v", metric.ID, err)
-					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-					return
-				}
+	for _, metric := range metrics {
+		switch metric.MType {
+		case models.Gauge:
+			if err := h.storage.UpdateGauge(metric.ID, *metric.Value); err != nil {
+				log.Printf("Failed to update gauge %s: %v", metric.ID, err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+		case models.Counter:
+			if err := h.storage.UpdateCounter(metric.ID, *metric.Delta); err != nil {
+				log.Printf("Failed to update counter %s: %v", metric.ID, err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
 			}
 		}
 	}

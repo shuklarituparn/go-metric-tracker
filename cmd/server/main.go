@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -11,7 +12,10 @@ import (
 )
 
 func main() {
-	cfg := config.LoadServerConfig()
+	cfg, err := config.NewConfig().LoadServerConfig()
+	if err != nil {
+		fmt.Printf("error loading server config :%v", err)
+	}
 	router := router.NewRouterWithFS(cfg)
 	go func() {
 		if err := router.Run(cfg.Endpoint); err != nil {

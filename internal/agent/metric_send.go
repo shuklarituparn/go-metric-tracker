@@ -125,8 +125,8 @@ func (s *Sender) SendMetrics() {
 
 func (s *Sender) sendIndividualMetrics(ctx context.Context, metrics []models.Metrics) {
 	for _, metric := range metrics {
-		err := retry.ExecuteWithRetry(ctx, s.retryConfig, func() error {
-			return s.SendMetric(metric)
+		_, err := retry.ExecuteWithRetry(ctx, s.retryConfig, func() (struct{}, error) {
+			return struct{}{}, s.SendMetric(metric)
 		})
 		if err != nil {
 			log.Printf("failed to send metric %s after retries: %v", metric.ID, err)
@@ -171,6 +171,15 @@ func (s *Sender) SendMetric(metric models.Metrics) error {
 
 	return nil
 }
+func (s *Sender) SendMetricsBatch() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_, err := retry.ExecuteWithRetry(ctx, s.retryConfig, func() (struct{}, error) {
+		return struct{}{}, s.sendMetricsBatchInternal()
+	})
+	return err
+}
 
 func (s *Sender) sendMetricsBatchInternal() error {
 	metrics := s.storage.GetAllMetrics()
@@ -210,14 +219,6 @@ func (s *Sender) sendMetricsBatchInternal() error {
 	return nil
 }
 
-func (s *Sender) SendMetricsBatch() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	return retry.ExecuteWithRetry(ctx, s.retryConfig, func() error {
-		return s.sendMetricsBatchInternal()
-	})
-
-}
 func (s *Sender) sendBatchUncompressed(data []byte) error {
 	url := fmt.Sprintf("%s/updates/", s.serverAddress)
 

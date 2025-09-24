@@ -16,9 +16,6 @@ type Storage interface {
 	GetMetric(name string) (*models.Metrics, bool)
 }
 
-type Pinger interface {
-	Ping() error
-}
 type MemStorage struct {
 	mu       sync.RWMutex
 	gauges   map[string]float64
@@ -121,27 +118,4 @@ func (ms *MemStorage) GetAllMetrics() []models.Metrics {
 		})
 	}
 	return metric
-}
-func (ms *MemStorage) UpdateBatch(metrics []models.Metrics) error {
-	if len(metrics) == 0 {
-		return nil
-	}
-
-	ms.mu.Lock()
-	defer ms.mu.Unlock()
-
-	for _, metric := range metrics {
-		switch metric.MType {
-		case models.Gauge:
-			if metric.Value != nil {
-				ms.gauges[metric.ID] = *metric.Value
-			}
-		case models.Counter:
-			if metric.Delta != nil {
-				ms.counters[metric.ID] += *metric.Delta
-			}
-		}
-	}
-
-	return nil
 }

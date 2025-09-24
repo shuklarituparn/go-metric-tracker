@@ -14,7 +14,10 @@ import (
 )
 
 func main() {
-	cfg := config.LoadAgentConfig()
+	cfg, err := config.NewConfig().LoadAgentConfig()
+	if err != nil {
+		fmt.Printf("can't load agent config :%v", err)
+	}
 	storage := repository.NewMemStorage()
 
 	metricCollector := agent.NewMetricCollector(cfg.PollInterval)
