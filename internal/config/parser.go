@@ -46,13 +46,13 @@ func NewConfigParser() *ConfigParser {
 	return &ConfigParser{
 		defaults: &DefaultValues{
 			Endpoint:             "localhost:8080",
-			ReportInterval:       "10",
-			PollInterval:         "2",
+			ReportInterval:       "10s",
+			PollInterval:         "2s",
 			StoreInterval:        "300",
 			FileStoragePath:      "/tmp/metrics-store.json",
 			Restore:              "true",
-			AgentRetryIntervals:  "1,3,5",
-			ServerRetryIntervals: "2,4,8",
+			AgentRetryIntervals:  "1s,3s,5s",
+			ServerRetryIntervals: "2s,4s,8s",
 		},
 	}
 }
