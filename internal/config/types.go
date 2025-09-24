@@ -8,10 +8,10 @@ import (
 )
 
 type AgentConfig struct {
-    Endpoint       string        `env:"ADDRESS"`
-    PollInterval   time.Duration `env:"POLL_INTERVAL"`
-    ReportInterval time.Duration `env:"REPORT_INTERVAL"`
-    RetryConfig    retry.RetryConfig
+	Endpoint       string        `env:"ADDRESS"`
+	ReportInterval time.Duration `env:"REPORT_INTERVAL"`
+	PollInterval   time.Duration `env:"POLL_INTERVAL"`
+	RetryConfig    retry.RetryConfig
 }
 
 type ServerConfig struct {

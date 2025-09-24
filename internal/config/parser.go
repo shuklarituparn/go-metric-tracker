@@ -101,7 +101,7 @@ func (p *ConfigParser) ParseAgentConfig() (*AgentConfig, error) {
 	}
 	var flags agentFlags
 	flag.StringVar(&flags.endpoint, "a", p.defaults.Endpoint, "endpoint address")
-	flag.StringVar(&flags.reportInterval, "r",p.defaults.ReportInterval, "report interval (seconds)")
+	flag.StringVar(&flags.reportInterval, "r", p.defaults.ReportInterval, "report interval (seconds)")
 	flag.StringVar(&flags.pollInterval, "p", p.defaults.PollInterval, "poll interval (seconds)")
 	flag.StringVar(&flags.retryIntervals, "retry-intervals", p.defaults.AgentRetryIntervals, "retry intervals in seconds, comma-separated (e.g., '1,3,5')")
 	flag.Parse()
@@ -126,14 +126,6 @@ func (p *ConfigParser) ParseAgentConfig() (*AgentConfig, error) {
 			appConfig.RetryConfig = p.createRetryConfig(customRetryIntervals)
 		}
 	}
-
-	if err := env.Parse(appConfig); err != nil {
-		return appConfig, err
-	}
-	pollDuration:=time.Duration(appConfig.PollInterval)*time.Second
-	reportDuration:= time.Duration(appConfig.ReportInterval)*time.Second
-	appConfig.PollInterval=pollDuration
-	appConfig.ReportInterval=reportDuration
 
 	return appConfig, nil
 }
@@ -207,7 +199,6 @@ func (p *ConfigParser) ParseServerConfig() (*ServerConfig, error) {
 			config.StoreIntervalDuration = time.Duration(duration) * time.Second
 		}
 	}
-	
 
 	return config, nil
 }
