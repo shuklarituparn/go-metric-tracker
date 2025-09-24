@@ -2,7 +2,6 @@ package config
 
 import (
 	"flag"
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -94,7 +93,7 @@ func (p *ConfigParser) ParseAgentConfig() (*AgentConfig, error) {
 	flag.StringVar(&flags.pollInterval, "p", "", "poll interval (seconds)")
 	flag.StringVar(&flags.retryIntervals, "retry-intervals", "", "retry intervals in seconds, comma-separated (e.g., '1,3,5')")
 	flag.Parse()
-	
+
 	pollTimeDuration := p.parseDurationWithDefault(p.defaults.PollInterval, 2)
 	reportTimeDuration := p.parseDurationWithDefault(p.defaults.ReportInterval, 10)
 
@@ -127,14 +126,36 @@ func (p *ConfigParser) ParseAgentConfig() (*AgentConfig, error) {
 		}
 	}
 
-	if err := env.Parse(appConfig); err != nil {
+	tempEnv := struct {
+		Address        string `env:"ADDRESS"`
+		ReportInterval string `env:"REPORT_INTERVAL"`
+		PollInterval   string `env:"POLL_INTERVAL"`
+	}{}
+
+	if err := env.Parse(&tempEnv); err != nil {
 		return appConfig, err
 	}
-	fmt.Println("The server config is as follows: ")
-	fmt.Printf("The endpoint is as follows: %v", appConfig.Endpoint)
-	fmt.Printf("The pollInterval is as follows: %v", appConfig.PollInterval)
-	fmt.Printf("The reportInterval is as follows: %v", appConfig.ReportInterval)
-	fmt.Printf("The retryConfig is as follows: %v", appConfig.RetryConfig)
+
+	if tempEnv.Address != "" {
+		appConfig.Endpoint = tempEnv.Address
+	}
+
+	parseFlexibleDuration := func(s string, fallback time.Duration) time.Duration {
+		if s == "" {
+			return fallback
+		}
+		if d, err := time.ParseDuration(s); err == nil {
+			return d
+		}
+		if secs, err := strconv.Atoi(s); err == nil {
+			return time.Duration(secs) * time.Second
+		}
+		return fallback
+	}
+
+	appConfig.ReportInterval = parseFlexibleDuration(tempEnv.ReportInterval, appConfig.ReportInterval)
+	appConfig.PollInterval = parseFlexibleDuration(tempEnv.PollInterval, appConfig.PollInterval)
+
 	return appConfig, nil
 }
 
@@ -147,9 +168,9 @@ func (p *ConfigParser) ParseServerConfig() (*ServerConfig, error) {
 	flag.StringVar(&flags.databaseDSN, "d", "", "database DSN")
 	flag.StringVar(&flags.retryIntervals, "retry-intervals", "", "retry intervals in seconds, comma-separated (e.g., '2,4,8')")
 	flag.Parse()
-	
+
 	storeIntervalDuration := p.parseDurationWithDefault(p.defaults.StoreInterval, 300)
-	
+
 	restoreValue := p.parseBoolWithDefault(p.defaults.Restore, true)
 
 	defaultRetryIntervals := p.parseRetryIntervals(p.defaults.ServerRetryIntervals)
@@ -194,8 +215,6 @@ func (p *ConfigParser) ParseServerConfig() (*ServerConfig, error) {
 		}
 	}
 
-	
-	
 	if err := env.Parse(config); err != nil {
 		return config, err
 	}
