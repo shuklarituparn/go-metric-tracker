@@ -149,6 +149,7 @@ func (p *ConfigParser) ParseServerConfig() (*ServerConfig, error) {
 	flag.Parse()
 	
 	storeIntervalDuration := p.parseDurationWithDefault(p.defaults.StoreInterval, 300)
+	
 	restoreValue := p.parseBoolWithDefault(p.defaults.Restore, true)
 
 	defaultRetryIntervals := p.parseRetryIntervals(p.defaults.ServerRetryIntervals)
@@ -193,6 +194,8 @@ func (p *ConfigParser) ParseServerConfig() (*ServerConfig, error) {
 		}
 	}
 
+	
+	
 	if err := env.Parse(config); err != nil {
 		return config, err
 	}
