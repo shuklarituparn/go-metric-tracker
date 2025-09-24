@@ -173,14 +173,14 @@ func (h *MetricsHandler) GetMetricJSON(c *gin.Context) {
 }
 
 func (h *MetricsHandler) DBHandler(c *gin.Context) {
-	if pinger, ok := h.storage.(repository.Pinger); ok {
-		if err := pinger.Ping(); err != nil {
+	if dbStorage, ok := h.storage.(*repository.DBStorage); ok {
+		if err := dbStorage.Ping(); err != nil {
 			log.Printf("database ping failed: %v", err)
 			c.Status(http.StatusInternalServerError)
 			return
 		}
 		c.Status(http.StatusOK)
 		return
-	}
+	}	
 	c.Status(http.StatusInternalServerError)
 }

@@ -158,3 +158,6 @@ func (ds *DBStorage) UpdateBatch(metrics []models.Metrics) error {
 	})
 	return err
 }
+func (ds *DBStorage) Ping() error {
+	return ds.dr.Ping()
+}

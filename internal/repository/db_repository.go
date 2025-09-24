@@ -12,10 +12,6 @@ type DBRepository struct {
 	db *sql.DB
 }
 
-type Pinger interface {
-	Ping() error
-}
-
 func NewDBRepository(db *sql.DB) *DBRepository {
 	return &DBRepository{db: db}
 }
