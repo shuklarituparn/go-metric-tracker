@@ -2,6 +2,7 @@ package config
 
 import (
 	"flag"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -126,6 +127,10 @@ func (p *ConfigParser) ParseAgentConfig() (*AgentConfig, error) {
 			appConfig.RetryConfig = p.createRetryConfig(customRetryIntervals)
 		}
 	}
+	if err := env.Parse(appConfig); err != nil {
+			log.Printf("err: parsing env variables: %v", err)
+		}
+
 
 	return appConfig, nil
 }
