@@ -87,12 +87,6 @@ func (p *ConfigParser) createRetryConfig(intervals []time.Duration) retry.RetryC
 }
 
 func (p *ConfigParser) ParseAgentConfig() (*AgentConfig, error) {
-	var flags agentFlags
-	flag.StringVar(&flags.endpoint, "a", "", "endpoint address")
-	flag.StringVar(&flags.reportInterval, "r", "", "report interval (seconds)")
-	flag.StringVar(&flags.pollInterval, "p", "", "poll interval (seconds)")
-	flag.StringVar(&flags.retryIntervals, "retry-intervals", "", "retry intervals in seconds, comma-separated (e.g., '1,3,5')")
-	flag.Parse()
 
 	pollTimeDuration := p.parseDurationWithDefault(p.defaults.PollInterval, 2)
 	reportTimeDuration := p.parseDurationWithDefault(p.defaults.ReportInterval, 10)
@@ -105,6 +99,13 @@ func (p *ConfigParser) ParseAgentConfig() (*AgentConfig, error) {
 		ReportInterval: reportTimeDuration,
 		RetryConfig:    p.createRetryConfig(defaultRetryIntervals),
 	}
+	var flags agentFlags
+	flag.StringVar(&flags.endpoint, "a", "", "endpoint address")
+	flag.StringVar(&flags.reportInterval, "r", "", "report interval (seconds)")
+	flag.StringVar(&flags.pollInterval, "p", "", "poll interval (seconds)")
+	flag.StringVar(&flags.retryIntervals, "retry-intervals", "", "retry intervals in seconds, comma-separated (e.g., '1,3,5')")
+	flag.Parse()
+
 	if flags.endpoint != "" {
 		appConfig.Endpoint = flags.endpoint
 	}
@@ -160,14 +161,6 @@ func (p *ConfigParser) ParseAgentConfig() (*AgentConfig, error) {
 }
 
 func (p *ConfigParser) ParseServerConfig() (*ServerConfig, error) {
-	var flags serverFlags
-	flag.StringVar(&flags.endpoint, "a", "", "endpoint address")
-	flag.StringVar(&flags.storeInterval, "i", "", "store interval (seconds)")
-	flag.StringVar(&flags.fileStoragePath, "f", "", "file storage path")
-	flag.StringVar(&flags.restore, "r", "", "restore from file (true/false)")
-	flag.StringVar(&flags.databaseDSN, "d", "", "database DSN")
-	flag.StringVar(&flags.retryIntervals, "retry-intervals", "", "retry intervals in seconds, comma-separated (e.g., '2,4,8')")
-	flag.Parse()
 
 	storeIntervalDuration := p.parseDurationWithDefault(p.defaults.StoreInterval, 300)
 
@@ -185,6 +178,15 @@ func (p *ConfigParser) ParseServerConfig() (*ServerConfig, error) {
 		DatabaseDSN:           "",
 		RetryConfig:           p.createRetryConfig(defaultRetryIntervals),
 	}
+
+	var flags serverFlags
+	flag.StringVar(&flags.endpoint, "a", "", "endpoint address")
+	flag.StringVar(&flags.storeInterval, "i", "", "store interval (seconds)")
+	flag.StringVar(&flags.fileStoragePath, "f", "", "file storage path")
+	flag.StringVar(&flags.restore, "r", "", "restore from file (true/false)")
+	flag.StringVar(&flags.databaseDSN, "d", "", "database DSN")
+	flag.StringVar(&flags.retryIntervals, "retry-intervals", "", "retry intervals in seconds, comma-separated (e.g., '2,4,8')")
+	flag.Parse()
 
 	if flags.endpoint != "" {
 		config.Endpoint = flags.endpoint
