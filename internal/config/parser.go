@@ -100,10 +100,10 @@ func (p *ConfigParser) ParseAgentConfig() (*AgentConfig, error) {
 		RetryConfig:    p.createRetryConfig(defaultRetryIntervals),
 	}
 	var flags agentFlags
-	flag.StringVar(&flags.endpoint, "a", "", "endpoint address")
-	flag.StringVar(&flags.reportInterval, "r", "", "report interval (seconds)")
-	flag.StringVar(&flags.pollInterval, "p", "", "poll interval (seconds)")
-	flag.StringVar(&flags.retryIntervals, "retry-intervals", "", "retry intervals in seconds, comma-separated (e.g., '1,3,5')")
+	flag.StringVar(&flags.endpoint, "a", p.defaults.Endpoint, "endpoint address")
+	flag.StringVar(&flags.reportInterval, "r",p.defaults.ReportInterval, "report interval (seconds)")
+	flag.StringVar(&flags.pollInterval, "p", p.defaults.PollInterval, "poll interval (seconds)")
+	flag.StringVar(&flags.retryIntervals, "retry-intervals", p.defaults.AgentRetryIntervals, "retry intervals in seconds, comma-separated (e.g., '1,3,5')")
 	flag.Parse()
 
 	if flags.endpoint != "" {
@@ -127,35 +127,9 @@ func (p *ConfigParser) ParseAgentConfig() (*AgentConfig, error) {
 		}
 	}
 
-	tempEnv := struct {
-		Address        string `env:"ADDRESS"`
-		ReportInterval string `env:"REPORT_INTERVAL"`
-		PollInterval   string `env:"POLL_INTERVAL"`
-	}{}
-
-	if err := env.Parse(&tempEnv); err != nil {
+	if err := env.Parse(appConfig); err != nil {
 		return appConfig, err
 	}
-
-	if tempEnv.Address != "" {
-		appConfig.Endpoint = tempEnv.Address
-	}
-
-	parseFlexibleDuration := func(s string, fallback time.Duration) time.Duration {
-		if s == "" {
-			return fallback
-		}
-		if d, err := time.ParseDuration(s); err == nil {
-			return d
-		}
-		if secs, err := strconv.Atoi(s); err == nil {
-			return time.Duration(secs) * time.Second
-		}
-		return fallback
-	}
-
-	appConfig.ReportInterval = parseFlexibleDuration(tempEnv.ReportInterval, appConfig.ReportInterval)
-	appConfig.PollInterval = parseFlexibleDuration(tempEnv.PollInterval, appConfig.PollInterval)
 
 	return appConfig, nil
 }
@@ -180,10 +154,10 @@ func (p *ConfigParser) ParseServerConfig() (*ServerConfig, error) {
 	}
 
 	var flags serverFlags
-	flag.StringVar(&flags.endpoint, "a", "", "endpoint address")
-	flag.StringVar(&flags.storeInterval, "i", "", "store interval (seconds)")
-	flag.StringVar(&flags.fileStoragePath, "f", "", "file storage path")
-	flag.StringVar(&flags.restore, "r", "", "restore from file (true/false)")
+	flag.StringVar(&flags.endpoint, "a", p.defaults.Endpoint, "endpoint address")
+	flag.StringVar(&flags.storeInterval, "i", p.defaults.StoreInterval, "store interval (seconds)")
+	flag.StringVar(&flags.fileStoragePath, "f", p.defaults.FileStoragePath, "file storage path")
+	flag.StringVar(&flags.restore, "r", p.defaults.Restore, "restore from file (true/false)")
 	flag.StringVar(&flags.databaseDSN, "d", "", "database DSN")
 	flag.StringVar(&flags.retryIntervals, "retry-intervals", "", "retry intervals in seconds, comma-separated (e.g., '2,4,8')")
 	flag.Parse()
