@@ -130,6 +130,10 @@ func (p *ConfigParser) ParseAgentConfig() (*AgentConfig, error) {
 	if err := env.Parse(appConfig); err != nil {
 		return appConfig, err
 	}
+	pollDuration:=time.Duration(appConfig.PollInterval)*time.Second
+	reportDuration:= time.Duration(appConfig.ReportInterval)*time.Second
+	appConfig.PollInterval=pollDuration
+	appConfig.ReportInterval=reportDuration
 
 	return appConfig, nil
 }
@@ -203,6 +207,7 @@ func (p *ConfigParser) ParseServerConfig() (*ServerConfig, error) {
 			config.StoreIntervalDuration = time.Duration(duration) * time.Second
 		}
 	}
+	
 
 	return config, nil
 }
