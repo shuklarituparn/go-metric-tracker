@@ -40,6 +40,7 @@ type Sender struct {
 	ticker         *time.Ticker
 	useBatch       bool
 	retryConfig    retry.RetryConfig
+	key            string
 }
 
 func NewStorageSender(collector Collector, storage repository.Storage, interval time.Duration) StorageSender {
@@ -90,7 +91,7 @@ func (mss *MetricStorageSender) SendToStorage() error {
 
 }
 
-func NewSender(serverAddress string, reportInterval time.Duration, storage repository.Storage) ServerSender {
+func NewSender(serverAddress string, reportInterval time.Duration, storage repository.Storage, key string) ServerSender {
 	return &Sender{
 		client:         &http.Client{},
 		serverAddress:  serverAddress,
@@ -98,6 +99,7 @@ func NewSender(serverAddress string, reportInterval time.Duration, storage repos
 		storage:        storage,
 		useBatch:       true,
 		retryConfig:    retry.DefaultConfig(),
+		key:            key,
 	}
 }
 
@@ -144,11 +146,16 @@ func (s *Sender) SendMetric(metric models.Metrics) error {
 	if err != nil {
 		return fmt.Errorf("err: failed to compress data: %s", err.Error())
 	}
+
 	url := fmt.Sprintf("%s/update/", s.serverAddress)
 
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(compressedData))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
+	}
+	if s.key != "" {
+		hash := utils.CalculateHMAC(compressedData, s.key)
+		req.Header.Set("HashSHA256", hash)
 	}
 
 	req.Header.Set("Content-Type", "application/json")

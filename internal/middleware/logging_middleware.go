@@ -7,18 +7,18 @@ import (
 	"go.uber.org/zap"
 )
 
-type responseWriter struct {
+type loggingresponseWriter struct {
 	gin.ResponseWriter
 	size int
 }
 
-func (w *responseWriter) Write(b []byte) (int, error) {
+func (w *loggingresponseWriter) Write(b []byte) (int, error) {
 	size, err := w.ResponseWriter.Write(b)
 	w.size += size
 	return size, err
 }
 
-func (w *responseWriter) WriteString(s string) (int, error) {
+func (w *loggingresponseWriter) WriteString(s string) (int, error) {
 	size, err := w.ResponseWriter.WriteString(s)
 	w.size += size
 	return size, err
@@ -28,7 +28,7 @@ func Logger(logger *zap.Logger) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		start := time.Now()
 		path := ctx.Request.URL.Path
-		rw := &responseWriter{ResponseWriter: ctx.Writer}
+		rw := &loggingresponseWriter{ResponseWriter: ctx.Writer}
 		ctx.Writer = rw
 
 		ctx.Next()

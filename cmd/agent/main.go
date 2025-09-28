@@ -27,7 +27,7 @@ func main() {
 
 	time.Sleep(2 * time.Second)
 	fullendpoint := fmt.Sprintf("http://%s", cfg.Endpoint)
-	serverSender := agent.NewSender(fullendpoint, cfg.ReportInterval, storage)
+	serverSender := agent.NewSender(fullendpoint, cfg.ReportInterval, storage, cfg.Key)
 	serverSender.Start()
 
 	sig := make(chan os.Signal, 1)

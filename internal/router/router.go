@@ -36,6 +36,7 @@ func NewRouterWithFS(cfg *config.ServerConfig) *gin.Engine {
 func NewRouterWithStorage(cfg *config.ServerConfig) (*gin.Engine, func()) {
 	var storage repository.Storage
 	var cleanup func()
+	var router *gin.Engine
 
 	if cfg.DBConfig.DSN != "" {
 		db, err := cfg.DBConfig.Connect()
@@ -96,11 +97,15 @@ func NewRouterWithStorage(cfg *config.ServerConfig) (*gin.Engine, func()) {
 			}
 		}
 	}
+	if cfg.Key != "" {
+		router = CreateRouter(storage, cfg.Key)
 
-	router := CreateRouter(storage)
+	} else {
+		router = CreateRouter(storage, "")
+	}
 	return router, cleanup
 }
-func CreateRouter(storage repository.Storage) *gin.Engine {
+func CreateRouter(storage repository.Storage, key string) *gin.Engine {
 	metricsHandler := handler.NewMetricHandler(storage)
 	logger, err := zap.NewProduction()
 	if err != nil {
@@ -118,6 +123,9 @@ func CreateRouter(storage repository.Storage) *gin.Engine {
 
 	router.Use(gin.Recovery())
 	router.Use(middleware.Logger(logger))
+	if key != "" {
+		router.Use(middleware.HMACMiddleware(key))
+	}
 	router.Use(middleware.CompressionMiddleware())
 	router.Use(middleware.DecompressionMiddleware())
 

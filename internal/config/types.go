@@ -12,6 +12,7 @@ type AgentConfig struct {
 	ReportInterval time.Duration `env:"REPORT_INTERVAL"`
 	PollInterval   time.Duration `env:"POLL_INTERVAL"`
 	RetryConfig    retry.RetryConfig
+	Key            string `env:"KEY"`
 }
 
 type ServerConfig struct {
@@ -21,6 +22,7 @@ type ServerConfig struct {
 	Restore               bool   `env:"RESTORE"`
 	StoreIntervalDuration time.Duration
 	DBConfig              *db.Config
+	Key                   string `env:"KEY"`
 	DatabaseDSN           string `env:"DATABASE_DSN"`
 	RetryConfig           retry.RetryConfig
 }

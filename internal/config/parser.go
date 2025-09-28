@@ -21,6 +21,7 @@ type DefaultValues struct {
 	Restore              string
 	AgentRetryIntervals  string
 	ServerRetryIntervals string
+	Key                  string
 }
 
 type ConfigParser struct {
@@ -32,6 +33,7 @@ type agentFlags struct {
 	reportInterval string
 	pollInterval   string
 	retryIntervals string
+	key            string
 }
 
 type serverFlags struct {
@@ -41,6 +43,7 @@ type serverFlags struct {
 	restore         string
 	databaseDSN     string
 	retryIntervals  string
+	key             string
 }
 
 func NewConfigParser() *ConfigParser {
@@ -54,6 +57,7 @@ func NewConfigParser() *ConfigParser {
 			Restore:              "true",
 			AgentRetryIntervals:  "1,3,5",
 			ServerRetryIntervals: "2,4,8",
+			Key:                  "",
 		},
 	}
 }
@@ -99,12 +103,15 @@ func (p *ConfigParser) ParseAgentConfig() (*AgentConfig, error) {
 		PollInterval:   pollTimeDuration,
 		ReportInterval: reportTimeDuration,
 		RetryConfig:    p.createRetryConfig(defaultRetryIntervals),
+		Key:            "",
 	}
 	var flags agentFlags
 	flag.StringVar(&flags.endpoint, "a", p.defaults.Endpoint, "endpoint address")
 	flag.StringVar(&flags.reportInterval, "r", p.defaults.ReportInterval, "report interval (seconds)")
 	flag.StringVar(&flags.pollInterval, "p", p.defaults.PollInterval, "poll interval (seconds)")
 	flag.StringVar(&flags.retryIntervals, "retry-intervals", p.defaults.AgentRetryIntervals, "retry intervals in seconds, comma-separated (e.g., '1,3,5')")
+	flag.StringVar(&flags.key, "k", p.defaults.Key, "key for the hmac signature")
+
 	flag.Parse()
 
 	if flags.endpoint != "" {
@@ -127,10 +134,12 @@ func (p *ConfigParser) ParseAgentConfig() (*AgentConfig, error) {
 			appConfig.RetryConfig = p.createRetryConfig(customRetryIntervals)
 		}
 	}
+	if flags.key != "" {
+		appConfig.Key = flags.key
+	}
 	if err := env.Parse(appConfig); err != nil {
-			log.Printf("err: parsing env variables: %v", err)
-		}
-
+		log.Printf("err: parsing env variables: %v", err)
+	}
 
 	return appConfig, nil
 }
@@ -152,6 +161,7 @@ func (p *ConfigParser) ParseServerConfig() (*ServerConfig, error) {
 		DBConfig:              db.NewDefaultConfig(),
 		DatabaseDSN:           "",
 		RetryConfig:           p.createRetryConfig(defaultRetryIntervals),
+		Key:                   "",
 	}
 
 	var flags serverFlags
@@ -161,6 +171,7 @@ func (p *ConfigParser) ParseServerConfig() (*ServerConfig, error) {
 	flag.StringVar(&flags.restore, "r", p.defaults.Restore, "restore from file (true/false)")
 	flag.StringVar(&flags.databaseDSN, "d", "", "database DSN")
 	flag.StringVar(&flags.retryIntervals, "retry-intervals", "", "retry intervals in seconds, comma-separated (e.g., '2,4,8')")
+	flag.StringVar(&flags.key, "k", p.defaults.Key, "key for the hmac signature")
 	flag.Parse()
 
 	if flags.endpoint != "" {
@@ -190,6 +201,9 @@ func (p *ConfigParser) ParseServerConfig() (*ServerConfig, error) {
 		if len(customRetryIntervals) > 0 {
 			config.RetryConfig = p.createRetryConfig(customRetryIntervals)
 		}
+	}
+	if flags.key != "" {
+		config.Key = flags.key
 	}
 
 	if err := env.Parse(config); err != nil {
