@@ -1,10 +1,15 @@
 package agent
 
 import (
+	"fmt"
+	"log"
 	"math/rand"
 	"runtime"
 	"sync"
 	"time"
+
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/mem"
 
 	models "github.com/shuklarituparn/go-metric-tracker/internal/model"
 )
@@ -33,12 +38,19 @@ func NewMetricCollector(pollInterval time.Duration) Collector {
 }
 func (mc *MetricCollector) Start() {
 	mc.Collect()
+	mc.CollectSystemMetrics()
 	mc.ticker = time.NewTicker(mc.pollInterval)
 	go func() {
 		for range mc.ticker.C {
 			mc.Collect()
 		}
 	}()
+	go func() {
+		for range mc.ticker.C {
+			mc.CollectSystemMetrics()
+		}
+	}()
+
 }
 
 func CreateGuageMetric(id string, value float64) *models.Metrics {
@@ -104,6 +116,29 @@ func (mc *MetricCollector) Collect() {
 
 }
 
+func (mc *MetricCollector) CollectSystemMetrics() {
+	vm, err := mem.VirtualMemory()
+	if err != nil {
+		log.Printf("failed to collect virtual memory metrics: %v", err)
+	}
+
+	cpuPercent, err := cpu.Percent(0, true)
+	if err != nil {
+		log.Printf("failed to collect CPU utilization metrics: %v", err)
+	}
+	mc.mu.Lock()
+	defer mc.mu.Unlock()
+
+	if vm != nil {
+		mc.metrics["TotalMemory"] = *CreateGuageMetric("TotalMemory", float64(vm.Total))
+		mc.metrics["FreeMemory"] = *CreateGuageMetric("FreeMemory", float64(vm.Free))
+	}
+	for i, p := range cpuPercent {
+		id := fmt.Sprintf("CPUutilization1_%d", i)
+		mc.metrics[id] = *CreateGuageMetric(id, p)
+	}
+
+}
 func (mc *MetricCollector) GetMetrics() map[string]models.Metrics {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()

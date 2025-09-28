@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	models "github.com/shuklarituparn/go-metric-tracker/internal/model"
@@ -41,6 +42,7 @@ type Sender struct {
 	useBatch       bool
 	retryConfig    retry.RetryConfig
 	key            string
+	rateLimiter    int
 }
 
 func NewStorageSender(collector Collector, storage repository.Storage, interval time.Duration) StorageSender {
@@ -91,7 +93,7 @@ func (mss *MetricStorageSender) SendToStorage() error {
 
 }
 
-func NewSender(serverAddress string, reportInterval time.Duration, storage repository.Storage, key string) ServerSender {
+func NewSender(serverAddress string, reportInterval time.Duration, storage repository.Storage, key string, rateLimiter int) ServerSender {
 	return &Sender{
 		client:         &http.Client{},
 		serverAddress:  serverAddress,
@@ -100,6 +102,7 @@ func NewSender(serverAddress string, reportInterval time.Duration, storage repos
 		useBatch:       true,
 		retryConfig:    retry.DefaultConfig(),
 		key:            key,
+		rateLimiter:    rateLimiter,
 	}
 }
 
@@ -126,13 +129,25 @@ func (s *Sender) SendMetrics() {
 }
 
 func (s *Sender) sendIndividualMetrics(ctx context.Context, metrics []models.Metrics) {
+	sem := make(chan struct{}, s.rateLimiter)
+	var wg sync.WaitGroup
+
 	for _, metric := range metrics {
-		_, err := retry.ExecuteWithRetry(ctx, s.retryConfig, func() (struct{}, error) {
-			return struct{}{}, s.SendMetric(metric)
-		})
-		if err != nil {
-			log.Printf("failed to send metric %s after retries: %v", metric.ID, err)
-		}
+		sem <- struct{}{}
+		wg.Add(1)
+		go func() {
+			defer func() {
+				<-sem
+				wg.Done()
+			}()
+			_, err := retry.ExecuteWithRetry(ctx, s.retryConfig, func() (struct{}, error) {
+				return struct{}{}, s.SendMetric(metric)
+			})
+			if err != nil {
+				log.Printf("failed to send metric %s after retries: %v", metric.ID, err)
+			}
+		}()
+		wg.Wait()
 	}
 }
 

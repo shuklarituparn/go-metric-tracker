@@ -34,6 +34,7 @@ type agentFlags struct {
 	pollInterval   string
 	retryIntervals string
 	key            string
+	rateLimit      int
 }
 
 type serverFlags struct {
@@ -104,6 +105,7 @@ func (p *ConfigParser) ParseAgentConfig() (*AgentConfig, error) {
 		ReportInterval: reportTimeDuration,
 		RetryConfig:    p.createRetryConfig(defaultRetryIntervals),
 		Key:            "",
+		Ratelimit:      3,
 	}
 	var flags agentFlags
 	flag.StringVar(&flags.endpoint, "a", p.defaults.Endpoint, "endpoint address")
@@ -111,6 +113,7 @@ func (p *ConfigParser) ParseAgentConfig() (*AgentConfig, error) {
 	flag.StringVar(&flags.pollInterval, "p", p.defaults.PollInterval, "poll interval (seconds)")
 	flag.StringVar(&flags.retryIntervals, "retry-intervals", p.defaults.AgentRetryIntervals, "retry intervals in seconds, comma-separated (e.g., '1,3,5')")
 	flag.StringVar(&flags.key, "k", p.defaults.Key, "key for the hmac signature")
+	flag.IntVar(&flags.rateLimit, "l", 3, "rate-limit value")
 
 	flag.Parse()
 
@@ -136,6 +139,9 @@ func (p *ConfigParser) ParseAgentConfig() (*AgentConfig, error) {
 	}
 	if flags.key != "" {
 		appConfig.Key = flags.key
+	}
+	if flags.rateLimit != 0 {
+		appConfig.Ratelimit = flags.rateLimit
 	}
 	if err := env.Parse(appConfig); err != nil {
 		log.Printf("err: parsing env variables: %v", err)

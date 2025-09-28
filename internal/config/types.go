@@ -13,6 +13,7 @@ type AgentConfig struct {
 	PollInterval   time.Duration `env:"POLL_INTERVAL"`
 	RetryConfig    retry.RetryConfig
 	Key            string `env:"KEY"`
+	Ratelimit      int    `env:"RATE_LIMIT"`
 }
 
 type ServerConfig struct {
