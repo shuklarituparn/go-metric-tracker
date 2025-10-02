@@ -38,7 +38,7 @@ func (h *MetricsHandler) UpdateMetricsBatch(c *gin.Context) {
 			}
 		case models.Counter:
 			if metric.Delta == nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "counter "})
+				c.JSON(http.StatusBadRequest, gin.H{"error": "counter delta is required "})
 				return
 			}
 		default:

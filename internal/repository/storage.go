@@ -7,13 +7,20 @@ import (
 	models "github.com/shuklarituparn/go-metric-tracker/internal/model"
 )
 
-type Storage interface {
-	UpdateGauge(name string, value float64) error
-	UpdateCounter(name string, value int64) error
+type MetricReader interface {
 	GetCounter(name string) (int64, bool)
 	GetGauge(name string) (float64, bool)
 	GetAllMetrics() []models.Metrics
 	GetMetric(name string) (*models.Metrics, bool)
+}
+
+type MetricWriter interface {
+	UpdateGauge(name string, value float64) error
+	UpdateCounter(name string, value int64) error
+}
+type Storage interface {
+	MetricReader
+	MetricWriter
 }
 
 type MemStorage struct {

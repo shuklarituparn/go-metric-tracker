@@ -32,7 +32,7 @@ func (M *Metrics) IsValid() bool {
 	}
 }
 
-func (M *Metrics) GetGuageValue() (float64, bool) {
+func (M *Metrics) GetGaugeValue() (float64, bool) {
 	if !M.IsValid() {
 		return 0, false
 	}

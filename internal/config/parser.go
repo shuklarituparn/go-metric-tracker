@@ -3,6 +3,7 @@ package config
 import (
 	"flag"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -92,11 +93,102 @@ func (p *ConfigParser) createRetryConfig(intervals []time.Duration) retry.RetryC
 	}
 }
 
+func (p *ConfigParser) ParseAgentFlags(args []string) (*agentFlags, error) {
+	var flags agentFlags
+	fs := flag.NewFlagSet("agent", flag.PanicOnError)
+	fs.StringVar(&flags.endpoint, "a", p.defaults.Endpoint, "endpoint address")
+	fs.StringVar(&flags.reportInterval, "r", p.defaults.ReportInterval, "report interval (seconds)")
+	fs.StringVar(&flags.pollInterval, "p", p.defaults.PollInterval, "poll interval (seconds)")
+	fs.StringVar(&flags.retryIntervals, "retry-intervals", p.defaults.AgentRetryIntervals, "retry intervals in seconds, comma-separated (e.g., '1,3,5')")
+	fs.StringVar(&flags.key, "k", p.defaults.Key, "key for the hmac signature")
+	fs.IntVar(&flags.rateLimit, "l", 3, "rate-limit value")
+
+	if err := fs.Parse(args); err != nil {
+		return nil, err
+	}
+	return &flags, nil
+
+}
+
+func (p *ConfigParser) ParseServerFlags(args []string) (*serverFlags, error) {
+	var flags serverFlags
+	fs := flag.NewFlagSet("server", flag.PanicOnError)
+	fs.StringVar(&flags.endpoint, "a", p.defaults.Endpoint, "endpoint address")
+	fs.StringVar(&flags.storeInterval, "i", p.defaults.StoreInterval, "store interval (seconds)")
+	fs.StringVar(&flags.fileStoragePath, "f", p.defaults.FileStoragePath, "file storage path")
+	fs.StringVar(&flags.restore, "r", p.defaults.Restore, "restore from file (true/false)")
+	fs.StringVar(&flags.databaseDSN, "d", "", "database DSN")
+	fs.StringVar(&flags.retryIntervals, "retry-intervals", "", "retry intervals in seconds, comma-separated (e.g., '2,4,8')")
+	fs.StringVar(&flags.key, "k", p.defaults.Key, "key for the hmac signature")
+	if err := fs.Parse(args); err != nil {
+		return nil, err
+	}
+	return &flags, nil
+}
+
+func (p *ConfigParser) MergeServerFlags(cfg *ServerConfig, flags *serverFlags) (*ServerConfig, error) {
+	var serverConfig ServerConfig
+
+	if flags.endpoint != "" {
+		serverConfig.Endpoint = flags.endpoint
+	}
+	if flags.storeInterval != "" {
+		serverConfig.StoreInterval = flags.storeInterval
+		serverConfig.StoreIntervalDuration = p.parseDurationWithDefault(flags.storeInterval, 300)
+	}
+	if flags.restore != "" {
+		serverConfig.Restore = p.parseBoolWithDefault(flags.restore, true)
+
+	}
+	if flags.fileStoragePath != "" {
+		serverConfig.FileStoragePath = flags.fileStoragePath
+	}
+	if flags.databaseDSN != "" {
+		serverConfig.DatabaseDSN = flags.databaseDSN
+		serverConfig.DBConfig.DSN = flags.databaseDSN
+	}
+	if flags.retryIntervals != "" {
+		intervals := p.parseRetryIntervals(flags.retryIntervals)
+		if len(intervals) > 0 {
+			serverConfig.RetryConfig = p.createRetryConfig(intervals)
+		}
+	}
+	if flags.key != "" {
+		serverConfig.Key = flags.key
+	}
+	return &serverConfig, nil
+}
+
+func (p *ConfigParser) MergeAgentFlags(cfg *AgentConfig, flags *agentFlags) (*AgentConfig, error) {
+	var agentConfig AgentConfig
+	if flags.endpoint != "" {
+		agentConfig.Endpoint = flags.endpoint
+	}
+	if flags.reportInterval != "" {
+		agentConfig.ReportInterval = p.parseDurationWithDefault(flags.reportInterval, 10)
+	}
+	if flags.pollInterval != "" {
+		agentConfig.PollInterval = p.parseDurationWithDefault(flags.pollInterval, 2)
+	}
+	if flags.retryIntervals != "" {
+		intervals := p.parseRetryIntervals(flags.retryIntervals)
+		if len(intervals) > 0 {
+			agentConfig.RetryConfig = p.createRetryConfig(intervals)
+		}
+	}
+	if flags.key != "" {
+		agentConfig.Key = flags.key
+	}
+	if flags.rateLimit > 0 {
+		agentConfig.Ratelimit = flags.rateLimit
+	}
+	return &agentConfig, nil
+}
+
 func (p *ConfigParser) ParseAgentConfig() (*AgentConfig, error) {
 
 	pollTimeDuration := p.parseDurationWithDefault(p.defaults.PollInterval, 2)
 	reportTimeDuration := p.parseDurationWithDefault(p.defaults.ReportInterval, 10)
-
 	defaultRetryIntervals := p.parseRetryIntervals(p.defaults.AgentRetryIntervals)
 
 	appConfig := &AgentConfig{
@@ -107,47 +199,21 @@ func (p *ConfigParser) ParseAgentConfig() (*AgentConfig, error) {
 		Key:            "",
 		Ratelimit:      3,
 	}
-	var flags agentFlags
-	flag.StringVar(&flags.endpoint, "a", p.defaults.Endpoint, "endpoint address")
-	flag.StringVar(&flags.reportInterval, "r", p.defaults.ReportInterval, "report interval (seconds)")
-	flag.StringVar(&flags.pollInterval, "p", p.defaults.PollInterval, "poll interval (seconds)")
-	flag.StringVar(&flags.retryIntervals, "retry-intervals", p.defaults.AgentRetryIntervals, "retry intervals in seconds, comma-separated (e.g., '1,3,5')")
-	flag.StringVar(&flags.key, "k", p.defaults.Key, "key for the hmac signature")
-	flag.IntVar(&flags.rateLimit, "l", 3, "rate-limit value")
 
-	flag.Parse()
-
-	if flags.endpoint != "" {
-		appConfig.Endpoint = flags.endpoint
+	flags, err := p.ParseAgentFlags(os.Args[1:])
+	if err != nil {
+		log.Fatalf("err: mistake while parsing flag:%v", err)
 	}
-	if flags.reportInterval != "" {
-		if duration, err := strconv.Atoi(flags.reportInterval); err == nil {
-			appConfig.ReportInterval = time.Duration(duration) * time.Second
-		}
-	}
-	if flags.pollInterval != "" {
-		if duration, err := strconv.Atoi(flags.pollInterval); err == nil {
-			appConfig.PollInterval = time.Duration(duration) * time.Second
-		}
+	agentConfig, err := p.MergeAgentFlags(appConfig, flags)
+	if err != nil {
+		log.Fatalf("err: problem merging flag and config: %v", err)
 	}
 
-	if flags.retryIntervals != "" {
-		customRetryIntervals := p.parseRetryIntervals(flags.retryIntervals)
-		if len(customRetryIntervals) > 0 {
-			appConfig.RetryConfig = p.createRetryConfig(customRetryIntervals)
-		}
-	}
-	if flags.key != "" {
-		appConfig.Key = flags.key
-	}
-	if flags.rateLimit != 0 {
-		appConfig.Ratelimit = flags.rateLimit
-	}
-	if err := env.Parse(appConfig); err != nil {
+	if err := env.Parse(agentConfig); err != nil {
 		log.Printf("err: parsing env variables: %v", err)
 	}
 
-	return appConfig, nil
+	return agentConfig, nil
 }
 
 func (p *ConfigParser) ParseServerConfig() (*ServerConfig, error) {
@@ -170,62 +236,28 @@ func (p *ConfigParser) ParseServerConfig() (*ServerConfig, error) {
 		Key:                   "",
 	}
 
-	var flags serverFlags
-	flag.StringVar(&flags.endpoint, "a", p.defaults.Endpoint, "endpoint address")
-	flag.StringVar(&flags.storeInterval, "i", p.defaults.StoreInterval, "store interval (seconds)")
-	flag.StringVar(&flags.fileStoragePath, "f", p.defaults.FileStoragePath, "file storage path")
-	flag.StringVar(&flags.restore, "r", p.defaults.Restore, "restore from file (true/false)")
-	flag.StringVar(&flags.databaseDSN, "d", "", "database DSN")
-	flag.StringVar(&flags.retryIntervals, "retry-intervals", "", "retry intervals in seconds, comma-separated (e.g., '2,4,8')")
-	flag.StringVar(&flags.key, "k", p.defaults.Key, "key for the hmac signature")
-	flag.Parse()
-
-	if flags.endpoint != "" {
-		config.Endpoint = flags.endpoint
-	}
-	if flags.storeInterval != "" {
-		config.StoreInterval = flags.storeInterval
-		if duration, err := strconv.Atoi(flags.storeInterval); err == nil {
-			config.StoreIntervalDuration = time.Duration(duration) * time.Second
-		}
-	}
-	if flags.restore != "" {
-		if restoreVal, err := strconv.ParseBool(flags.restore); err == nil {
-			config.Restore = restoreVal
-		}
-	}
-	if flags.fileStoragePath != "" {
-		config.FileStoragePath = flags.fileStoragePath
-	}
-	if flags.databaseDSN != "" {
-		config.DatabaseDSN = flags.databaseDSN
-		config.DBConfig.DSN = flags.databaseDSN
+	flags, err := p.ParseServerFlags(os.Args[1:])
+	if err != nil {
+		log.Fatalf("err: mistake while parsing flag:%v", err)
 	}
 
-	if flags.retryIntervals != "" {
-		customRetryIntervals := p.parseRetryIntervals(flags.retryIntervals)
-		if len(customRetryIntervals) > 0 {
-			config.RetryConfig = p.createRetryConfig(customRetryIntervals)
-		}
-	}
-	if flags.key != "" {
-		config.Key = flags.key
+	serverConf, err := p.MergeServerFlags(config, flags)
+	if err != nil {
+		log.Fatalf("err: problem merging server flags:%v", err)
 	}
 
-	if err := env.Parse(config); err != nil {
-		return config, err
+	if err := env.Parse(serverConf); err != nil {
+		return serverConf, err
 	}
 
-	if config.DatabaseDSN != "" {
-		config.DBConfig.DSN = config.DatabaseDSN
+	if serverConf.DatabaseDSN != "" {
+		serverConf.DBConfig.DSN = serverConf.DatabaseDSN
 	}
-	if config.StoreInterval != "" {
-		if duration, err := strconv.Atoi(config.StoreInterval); err == nil {
-			config.StoreIntervalDuration = time.Duration(duration) * time.Second
-		}
+	if serverConf.StoreInterval != "" {
+		serverConf.StoreIntervalDuration = p.parseDurationWithDefault(serverConf.StoreInterval, 300)
 	}
 
-	return config, nil
+	return serverConf, nil
 }
 
 func (p *ConfigParser) parseDurationWithDefault(value string, defaultSeconds int) time.Duration {

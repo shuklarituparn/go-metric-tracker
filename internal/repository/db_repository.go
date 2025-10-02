@@ -29,8 +29,7 @@ func (r *DBRepository) InitSchema() error {
 	CREATE INDEX IF NOT EXISTS idx_metric_type ON metrics(type);
 	`
 
-	val, err := r.db.Exec(query)
-	log.Printf("got following result: %v", val)
+	_, err := r.db.Exec(query)
 	return err
 }
 

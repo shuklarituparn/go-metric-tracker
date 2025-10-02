@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"sync"
 	"time"
 
 	models "github.com/shuklarituparn/go-metric-tracker/internal/model"
 	"github.com/shuklarituparn/go-metric-tracker/internal/repository"
 	"github.com/shuklarituparn/go-metric-tracker/internal/retry"
 	"github.com/shuklarituparn/go-metric-tracker/internal/utils"
+	"golang.org/x/sync/errgroup"
 )
 
 type StorageSender interface {
@@ -129,25 +129,28 @@ func (s *Sender) SendMetrics() {
 }
 
 func (s *Sender) sendIndividualMetrics(ctx context.Context, metrics []models.Metrics) {
+	errGroup, ctx := errgroup.WithContext(ctx)
 	sem := make(chan struct{}, s.rateLimiter)
-	var wg sync.WaitGroup
 
 	for _, metric := range metrics {
+		m := metric
 		sem <- struct{}{}
-		wg.Add(1)
-		go func() {
+		errGroup.Go(func() error {
 			defer func() {
 				<-sem
-				wg.Done()
 			}()
 			_, err := retry.ExecuteWithRetry(ctx, s.retryConfig, func() (struct{}, error) {
-				return struct{}{}, s.SendMetric(metric)
+				return struct{}{}, s.SendMetric(m)
 			})
 			if err != nil {
 				log.Printf("failed to send metric %s after retries: %v", metric.ID, err)
 			}
-		}()
-		wg.Wait()
+			return err
+		})
+
+	}
+	if err := errGroup.Wait(); err != nil {
+		log.Printf("error: problem sending metrics :%v", err)
 	}
 }
 

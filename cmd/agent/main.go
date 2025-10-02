@@ -16,7 +16,7 @@ import (
 func main() {
 	cfg, err := config.NewConfig().LoadAgentConfig()
 	if err != nil {
-		fmt.Printf("can't load agent config :%v", err)
+		log.Fatalf("can't load agent config :%v", err)
 	}
 	storage := repository.NewMemStorage()
 

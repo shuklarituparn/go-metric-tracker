@@ -3,6 +3,7 @@ package agent
 import (
 	"fmt"
 	"log"
+	"maps"
 	"math/rand"
 	"runtime"
 	"sync"
@@ -53,7 +54,7 @@ func (mc *MetricCollector) Start() {
 
 }
 
-func CreateGuageMetric(id string, value float64) *models.Metrics {
+func CreateGaugeMetric(id string, value float64) *models.Metrics {
 	return &models.Metrics{
 		ID:    id,
 		MType: models.Gauge,
@@ -110,7 +111,7 @@ func (mc *MetricCollector) Collect() {
 	}
 
 	for name, value := range gaugeMetrics {
-		mc.metrics[name] = *CreateGuageMetric(name, value)
+		mc.metrics[name] = *CreateGaugeMetric(name, value)
 	}
 	mc.metrics["PollCount"] = *CreateCounterMetric("PollCount", mc.pollCount)
 
@@ -130,12 +131,12 @@ func (mc *MetricCollector) CollectSystemMetrics() {
 	defer mc.mu.Unlock()
 
 	if vm != nil {
-		mc.metrics["TotalMemory"] = *CreateGuageMetric("TotalMemory", float64(vm.Total))
-		mc.metrics["FreeMemory"] = *CreateGuageMetric("FreeMemory", float64(vm.Free))
+		mc.metrics["TotalMemory"] = *CreateGaugeMetric("TotalMemory", float64(vm.Total))
+		mc.metrics["FreeMemory"] = *CreateGaugeMetric("FreeMemory", float64(vm.Free))
 	}
 	for i, p := range cpuPercent {
 		id := fmt.Sprintf("CPUutilization1_%d", i)
-		mc.metrics[id] = *CreateGuageMetric(id, p)
+		mc.metrics[id] = *CreateGaugeMetric(id, p)
 	}
 
 }
@@ -143,10 +144,7 @@ func (mc *MetricCollector) GetMetrics() map[string]models.Metrics {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
 
-	metricsCopy := make(map[string]models.Metrics)
-	for k, v := range mc.metrics {
-		metricsCopy[k] = v
-
-	}
+	metricsCopy := make(map[string]models.Metrics, len(mc.metrics))
+	maps.Copy(metricsCopy, mc.metrics)
 	return metricsCopy
 }
