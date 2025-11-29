@@ -132,6 +132,7 @@ func (p *ConfigParser) ParseServerFlags(args []string) (*serverFlags, error) {
 
 func (p *ConfigParser) MergeServerFlags(cfg *ServerConfig, flags *serverFlags) (*ServerConfig, error) {
 	var serverConfig ServerConfig
+	serverConfig.DBConfig = db.NewDefaultConfig() // ← Fixed! Initialize DBConfig
 
 	if flags.endpoint != "" {
 		serverConfig.Endpoint = flags.endpoint
