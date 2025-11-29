@@ -2,7 +2,7 @@ package audit
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -46,7 +46,7 @@ func TestAuditManager_AddObserver(t *testing.T) {
 		t.Error("Expected manager to be disabled initially")
 	}
 
-	tmpFile, err := ioutil.TempFile("", "audit-test-*.log")
+	tmpFile, err := os.CreateTemp("", "audit-test-*.log")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestAuditManager_AddObserver(t *testing.T) {
 }
 
 func TestFileAuditor_Notify(t *testing.T) {
-	tmpFile, err := ioutil.TempFile("", "audit-test-*.log")
+	tmpFile, err := os.CreateTemp("", "audit-test-*.log")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestFileAuditor_Notify(t *testing.T) {
 		t.Fatalf("Failed to notify file auditor: %v", err)
 	}
 
-	data, err := ioutil.ReadFile(tmpFile.Name())
+	data, err := os.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatalf("Failed to read audit file: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestFileAuditor_Notify(t *testing.T) {
 }
 
 func TestFileAuditor_MultipleNotifications(t *testing.T) {
-	tmpFile, err := ioutil.TempFile("", "audit-test-*.log")
+	tmpFile, err := os.CreateTemp("", "audit-test-*.log")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestFileAuditor_MultipleNotifications(t *testing.T) {
 		}
 	}
 
-	data, err := ioutil.ReadFile(tmpFile.Name())
+	data, err := os.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatalf("Failed to read audit file: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestHTTPAuditor_Notify(t *testing.T) {
 			t.Errorf("Expected Content-Type application/json, got %s", r.Header.Get("Content-Type"))
 		}
 
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Fatalf("Failed to read request body: %v", err)
 		}
@@ -254,7 +254,7 @@ func TestHTTPAuditor_NetworkError(t *testing.T) {
 func TestAuditManager_Notify(t *testing.T) {
 	manager := NewAuditManager()
 
-	tmpFile, err := ioutil.TempFile("", "audit-test-*.log")
+	tmpFile, err := os.CreateTemp("", "audit-test-*.log")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
@@ -278,7 +278,7 @@ func TestAuditManager_Notify(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	data, err := ioutil.ReadFile(tmpFile.Name())
+	data, err := os.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatalf("Failed to read audit file: %v", err)
 	}
@@ -301,7 +301,7 @@ func TestAuditManager_Notify(t *testing.T) {
 func TestAuditManager_MultipleObservers(t *testing.T) {
 	manager := NewAuditManager()
 
-	tmpFile, err := ioutil.TempFile("", "audit-test-*.log")
+	tmpFile, err := os.CreateTemp("", "audit-test-*.log")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
@@ -337,7 +337,7 @@ func TestAuditManager_MultipleObservers(t *testing.T) {
 
 	time.Sleep(200 * time.Millisecond)
 
-	data, err := ioutil.ReadFile(tmpFile.Name())
+	data, err := os.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatalf("Failed to read audit file: %v", err)
 	}
@@ -353,7 +353,7 @@ func TestAuditManager_MultipleObservers(t *testing.T) {
 func TestAuditManager_ConcurrentNotify(t *testing.T) {
 	manager := NewAuditManager()
 
-	tmpFile, err := ioutil.TempFile("", "audit-test-*.log")
+	tmpFile, err := os.CreateTemp("", "audit-test-*.log")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
@@ -385,7 +385,7 @@ func TestAuditManager_ConcurrentNotify(t *testing.T) {
 
 	time.Sleep(200 * time.Millisecond)
 
-	data, err := ioutil.ReadFile(tmpFile.Name())
+	data, err := os.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatalf("Failed to read audit file: %v", err)
 	}

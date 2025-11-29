@@ -65,10 +65,10 @@ func (h *MetricsHandler) UpdateMetricsBatch(c *gin.Context) {
 
 	metricNames := make([]string, 0, len(metrics))
 	for _, metric := range metrics {
-			metricNames = append(metricNames, metric.ID)
-		}
+		metricNames = append(metricNames, metric.ID)
+	}
 	h.sendAudit(c, metricNames)
-		
+
 	var response []models.Metrics
 	for _, metric := range metrics {
 		switch metric.MType {

@@ -105,7 +105,7 @@ func TestMetricsHandler_BatchUpdateMultipleAuditors(t *testing.T) {
 	defer server.Close()
 
 	auditManager := audit.NewAuditManager()
-	
+
 	fileAuditor, err := audit.NewFileAuditor(tmpFile.Name())
 	if err != nil {
 		t.Fatalf("Failed to create file auditor: %v", err)
