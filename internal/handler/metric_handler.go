@@ -4,19 +4,40 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shuklarituparn/go-metric-tracker/internal/audit"
 	models "github.com/shuklarituparn/go-metric-tracker/internal/model"
 	"github.com/shuklarituparn/go-metric-tracker/internal/repository"
 )
 
 type MetricsHandler struct {
-	storage repository.Storage
+	storage      repository.Storage
+	auditManager *audit.AuditManager
 }
 
 func NewMetricHandler(storage repository.Storage) *MetricsHandler {
 	return &MetricsHandler{
-		storage: storage,
+		storage:      storage,
+		auditManager: nil,
+	}
+}
+
+func NewMetricHandlerWithAudit(storage repository.Storage, auditManager *audit.AuditManager) *MetricsHandler {
+	return &MetricsHandler{
+		storage:      storage,
+		auditManager: auditManager,
+	}
+}
+func (h *MetricsHandler) sendAudit(c *gin.Context, metricNames []string) {
+	if h.auditManager != nil && h.auditManager.IsEnabled() {
+		event := audit.AuditEvent{
+			Timestamp: time.Now().Unix(),
+			Metrics:   metricNames,
+			IPAddress: c.ClientIP(),
+		}
+		h.auditManager.Notify(event)
 	}
 }
 
@@ -129,6 +150,7 @@ func (h *MetricsHandler) UpdateMetricJSON(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+		h.sendAudit(c, []string{metric.ID})
 		c.JSON(http.StatusOK, metric)
 
 	case models.Counter:
@@ -142,6 +164,7 @@ func (h *MetricsHandler) UpdateMetricJSON(c *gin.Context) {
 		}
 		newValue, _ := h.storage.GetCounter(metric.ID)
 		metric.Delta = &newValue
+		h.sendAudit(c, []string{metric.ID})
 		c.JSON(http.StatusOK, metric)
 
 	default:
