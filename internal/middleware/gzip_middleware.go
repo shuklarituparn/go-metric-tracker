@@ -1,3 +1,4 @@
+// Package middleware предоставляет HTTP middleware для обработки сжатия данных.
 package middleware
 
 import (
@@ -10,19 +11,24 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// GzipWriter оборачивает gin.ResponseWriter для записи сжатых данных.
 type GzipWriter struct {
 	gin.ResponseWriter
 	writer *gzip.Writer
 }
 
+// Write записывает данные в gzip writer.
 func (g *GzipWriter) Write(data []byte) (int, error) {
 	return g.writer.Write(data)
 }
 
+// WriteString записывает строку в gzip writer.
 func (g *GzipWriter) WriteString(s string) (int, error) {
 	return g.writer.Write([]byte(s))
 }
 
+// DecompressionMiddleware создает middleware для декомпрессии входящих запросов.
+// Автоматически декомпрессирует тело запроса, если присутствует заголовок Content-Encoding: gzip.
 func DecompressionMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.GetHeader("Content-Encoding") == "gzip" {
@@ -61,6 +67,8 @@ func DecompressionMiddleware() gin.HandlerFunc {
 	}
 }
 
+// CompressionMiddleware создает middleware для сжатия исходящих ответов.
+// Автоматически сжимает ответы с помощью gzip, если клиент поддерживает это (Accept-Encoding: gzip).
 func CompressionMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		acceptEncoding := c.GetHeader("Accept-Encoding")

@@ -1,3 +1,4 @@
+// Package router предоставляет настройку маршрутизации HTTP-сервера метрик.
 package router
 
 import (
@@ -17,11 +18,16 @@ import (
 	"go.uber.org/zap"
 )
 
+// StorageCloser объединяет интерфейс хранилища с методом закрытия ресурсов.
 type StorageCloser interface {
 	repository.Storage
 	Close()
 }
 
+// NewRouterWithFS создает новый роутер с файловым хранилищем или базой данных.
+// Автоматически настраивает обработчик сигналов для корректного завершения работы.
+// Принимает cfg - конфигурацию сервера.
+// Возвращает настроенный роутер Gin.
 func NewRouterWithFS(cfg *config.ServerConfig) *gin.Engine {
 	router, cleanup := NewRouterWithStorage(cfg)
 	if cleanup != nil {
@@ -35,6 +41,9 @@ func NewRouterWithFS(cfg *config.ServerConfig) *gin.Engine {
 	return router
 }
 
+// NewRouterWithStorage создает новый роутер и инициализирует хранилище на основе конфигурации.
+// Поддерживает как базу данных (PostgreSQL), так и файловое хранилище.
+// Возвращает настроенный роутер и функцию очистки ресурсов.
 func NewRouterWithStorage(cfg *config.ServerConfig) (*gin.Engine, func()) {
 	var storage repository.Storage
 	var cleanup func()
@@ -139,6 +148,15 @@ func createAuditManager(cfg *config.ServerConfig) *audit.AuditManager {
 
 	return manager
 }
+
+// CreateRouter создает и настраивает роутер Gin с обработчиками метрик и middleware.
+// Настраивает маршруты для обновления и получения метрик, поддерживает HMAC аутентификацию
+// и сжатие данных.
+// Параметры:
+//   - storage: хранилище метрик
+//   - key: ключ для HMAC аутентификации (если пустой, HMAC не используется)
+//
+// Возвращает настроенный роутер Gin.
 func CreateRouter(storage repository.Storage, key string, auditManager *audit.AuditManager) *gin.Engine {
 	var metricsHandler *handler.MetricsHandler
 	if auditManager != nil && auditManager.IsEnabled() {

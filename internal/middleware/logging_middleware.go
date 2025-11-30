@@ -24,6 +24,8 @@ func (w *loggingresponseWriter) WriteString(s string) (int, error) {
 	return size, err
 }
 
+// Logger создает middleware для логирования HTTP запросов с использованием zap logger.
+// Логирует URI, HTTP метод, статус ответа, время выполнения и размер ответа.
 func Logger(logger *zap.Logger) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		start := time.Now()

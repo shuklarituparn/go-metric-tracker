@@ -9,6 +9,13 @@ import (
 	"github.com/shuklarituparn/go-metric-tracker/internal/utils"
 )
 
+// HMACMiddleware создает middleware для проверки HMAC подписи запросов.
+// Проверяет целостность данных в POST запросах, сравнивая заголовок HashSHA256
+// с вычисленным HMAC хешем тела запроса.
+// Параметры:
+//   - key: секретный ключ для HMAC (если пустой, проверка не выполняется)
+//
+// Возвращает HTTP 400 если подпись невалидна.
 func HMACMiddleware(key string) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		if key == "" {
