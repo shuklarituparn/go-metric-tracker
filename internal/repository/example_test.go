@@ -153,8 +153,7 @@ func ExampleMemStorage_concurrentUpdates() {
 // Показывает, что MemStorage реализует интерфейс Storage.
 func ExampleStorage() {
 	// Storage это интерфейс, который объединяет чтение и запись
-	var storage repository.Storage
-	storage = repository.NewMemStorage()
+	storage := repository.NewMemStorage()
 
 	// Используем методы интерфейса
 	storage.UpdateGauge("test", 42.0)
