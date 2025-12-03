@@ -1,3 +1,4 @@
+// Package repository предоставляет интерфейсы и реализации для хранения метрик.
 package repository
 
 import (
@@ -7,28 +8,40 @@ import (
 	models "github.com/shuklarituparn/go-metric-tracker/internal/model"
 )
 
+// MetricReader определяет интерфейс для чтения метрик из хранилища.
 type MetricReader interface {
+	// GetCounter возвращает значение метрики типа counter и флаг ее существования.
 	GetCounter(name string) (int64, bool)
+	// GetGauge возвращает значение метрики типа gauge и флаг ее существования.
 	GetGauge(name string) (float64, bool)
+	// GetAllMetrics возвращает все метрики из хранилища.
 	GetAllMetrics() []models.Metrics
+	// GetMetric возвращает метрику по имени и флаг ее существования.
 	GetMetric(name string) (*models.Metrics, bool)
 }
 
+// MetricWriter определяет интерфейс для записи метрик в хранилище.
 type MetricWriter interface {
+	// UpdateGauge обновляет значение метрики типа gauge.
 	UpdateGauge(name string, value float64) error
+	// UpdateCounter увеличивает значение метрики типа counter на указанную величину.
 	UpdateCounter(name string, value int64) error
 }
+
+// Storage объединяет интерфейсы для чтения и записи метрик.
 type Storage interface {
 	MetricReader
 	MetricWriter
 }
 
+// MemStorage реализует хранилище метрик в оперативной памяти.
 type MemStorage struct {
 	mu       sync.RWMutex
 	gauges   map[string]float64
 	counters map[string]int64
 }
 
+// NewMemStorage создает новое хранилище метрик в памяти.
 func NewMemStorage() *MemStorage {
 	return &MemStorage{
 		gauges:   make(map[string]float64),
@@ -36,6 +49,8 @@ func NewMemStorage() *MemStorage {
 	}
 }
 
+// UpdateGauge обновляет значение метрики типа gauge в памяти.
+// Возвращает ошибку, если имя метрики пустое.
 func (ms *MemStorage) UpdateGauge(name string, value float64) error {
 	if name == "" {
 		return fmt.Errorf("error: gauge metric name cannot be empty")
@@ -47,6 +62,8 @@ func (ms *MemStorage) UpdateGauge(name string, value float64) error {
 	return nil
 }
 
+// UpdateCounter увеличивает значение метрики типа counter на указанную величину.
+// Возвращает ошибку, если имя метрики пустое.
 func (ms *MemStorage) UpdateCounter(name string, value int64) error {
 	if name == "" {
 		return fmt.Errorf("error: counter metric name cannot be empty")
@@ -57,6 +74,8 @@ func (ms *MemStorage) UpdateCounter(name string, value int64) error {
 	return nil
 }
 
+// GetCounter возвращает значение метрики типа counter и флаг ее существования.
+// Возвращает 0 и false, если имя метрики пустое или метрика не найдена.
 func (ms *MemStorage) GetCounter(name string) (int64, bool) {
 	if name == "" {
 		return 0, false
@@ -67,6 +86,8 @@ func (ms *MemStorage) GetCounter(name string) (int64, bool) {
 	return value, ok
 }
 
+// GetGauge возвращает значение метрики типа gauge и флаг ее существования.
+// Возвращает 0 и false, если имя метрики пустое или метрика не найдена.
 func (ms *MemStorage) GetGauge(name string) (float64, bool) {
 	if name == "" {
 		return 0, false
@@ -77,6 +98,8 @@ func (ms *MemStorage) GetGauge(name string) (float64, bool) {
 	return value, ok
 }
 
+// GetMetric возвращает метрику по имени (gauge или counter) и флаг ее существования.
+// Возвращает nil и false, если имя метрики пустое или метрика не найдена.
 func (ms *MemStorage) GetMetric(name string) (*models.Metrics, bool) {
 	if name == "" {
 		return nil, false
@@ -102,6 +125,7 @@ func (ms *MemStorage) GetMetric(name string) (*models.Metrics, bool) {
 	return nil, false
 }
 
+// GetAllMetrics возвращает все метрики (gauge и counter) из хранилища.
 func (ms *MemStorage) GetAllMetrics() []models.Metrics {
 	ms.mu.RLock()
 	defer ms.mu.RUnlock()

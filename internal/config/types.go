@@ -26,4 +26,6 @@ type ServerConfig struct {
 	Key                   string `env:"KEY"`
 	DatabaseDSN           string `env:"DATABASE_DSN"`
 	RetryConfig           retry.RetryConfig
+	AuditFile             string `env:"AUDIT_FILE"`
+	AuditURL              string `env:"AUDIT_URL"`
 }

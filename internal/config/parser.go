@@ -46,6 +46,8 @@ type serverFlags struct {
 	databaseDSN     string
 	retryIntervals  string
 	key             string
+	auditFile       string
+	auditURL        string
 }
 
 func NewConfigParser() *ConfigParser {
@@ -120,6 +122,8 @@ func (p *ConfigParser) ParseServerFlags(args []string) (*serverFlags, error) {
 	fs.StringVar(&flags.databaseDSN, "d", "", "database DSN")
 	fs.StringVar(&flags.retryIntervals, "retry-intervals", "", "retry intervals in seconds, comma-separated (e.g., '2,4,8')")
 	fs.StringVar(&flags.key, "k", p.defaults.Key, "key for the hmac signature")
+	fs.StringVar(&flags.auditFile, "audit-file", "", "audit file path")
+	fs.StringVar(&flags.auditURL, "audit-url", "", "audit URL")
 	if err := fs.Parse(args); err != nil {
 		return nil, err
 	}
@@ -128,6 +132,7 @@ func (p *ConfigParser) ParseServerFlags(args []string) (*serverFlags, error) {
 
 func (p *ConfigParser) MergeServerFlags(cfg *ServerConfig, flags *serverFlags) (*ServerConfig, error) {
 	var serverConfig ServerConfig
+	serverConfig.DBConfig = db.NewDefaultConfig() // ← Fixed! Initialize DBConfig
 
 	if flags.endpoint != "" {
 		serverConfig.Endpoint = flags.endpoint
@@ -155,6 +160,12 @@ func (p *ConfigParser) MergeServerFlags(cfg *ServerConfig, flags *serverFlags) (
 	}
 	if flags.key != "" {
 		serverConfig.Key = flags.key
+	}
+	if flags.auditFile != "" {
+		serverConfig.AuditFile = flags.auditFile
+	}
+	if flags.auditURL != "" {
+		serverConfig.AuditURL = flags.auditURL
 	}
 	return &serverConfig, nil
 }

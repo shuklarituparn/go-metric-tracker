@@ -1,13 +1,16 @@
+// Package router предоставляет настройку маршрутизации HTTP-сервера метрик.
 package router
 
 import (
 	"log"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shuklarituparn/go-metric-tracker/internal/audit"
 	"github.com/shuklarituparn/go-metric-tracker/internal/config"
 	"github.com/shuklarituparn/go-metric-tracker/internal/handler"
 	"github.com/shuklarituparn/go-metric-tracker/internal/middleware"
@@ -15,11 +18,16 @@ import (
 	"go.uber.org/zap"
 )
 
+// StorageCloser объединяет интерфейс хранилища с методом закрытия ресурсов.
 type StorageCloser interface {
 	repository.Storage
 	Close()
 }
 
+// NewRouterWithFS создает новый роутер с файловым хранилищем или базой данных.
+// Автоматически настраивает обработчик сигналов для корректного завершения работы.
+// Принимает cfg - конфигурацию сервера.
+// Возвращает настроенный роутер Gin.
 func NewRouterWithFS(cfg *config.ServerConfig) *gin.Engine {
 	router, cleanup := NewRouterWithStorage(cfg)
 	if cleanup != nil {
@@ -33,6 +41,9 @@ func NewRouterWithFS(cfg *config.ServerConfig) *gin.Engine {
 	return router
 }
 
+// NewRouterWithStorage создает новый роутер и инициализирует хранилище на основе конфигурации.
+// Поддерживает как базу данных (PostgreSQL), так и файловое хранилище.
+// Возвращает настроенный роутер и функцию очистки ресурсов.
 func NewRouterWithStorage(cfg *config.ServerConfig) (*gin.Engine, func()) {
 	var storage repository.Storage
 	var cleanup func()
@@ -97,16 +108,63 @@ func NewRouterWithStorage(cfg *config.ServerConfig) (*gin.Engine, func()) {
 			}
 		}
 	}
+	auditManager := createAuditManager(cfg)
+
 	if cfg.Key != "" {
-		router = CreateRouter(storage, cfg.Key)
+		router = CreateRouter(storage, cfg.Key, auditManager)
 
 	} else {
-		router = CreateRouter(storage, "")
+		router = CreateRouter(storage, "", auditManager)
 	}
 	return router, cleanup
 }
-func CreateRouter(storage repository.Storage, key string) *gin.Engine {
-	metricsHandler := handler.NewMetricHandler(storage)
+
+func createAuditManager(cfg *config.ServerConfig) *audit.AuditManager {
+	manager := audit.NewAuditManager()
+
+	if cfg.AuditFile != "" {
+		fileAuditor, err := audit.NewFileAuditor(cfg.AuditFile)
+		if err != nil {
+			log.Printf("Failed to create file auditor: %v", err)
+		} else {
+			manager.AddObserver(fileAuditor)
+			log.Printf("Audit logging to file: %s", cfg.AuditFile)
+		}
+	}
+
+	if cfg.AuditURL != "" {
+		httpAuditor, err := audit.NewHTTPAuditor(cfg.AuditURL)
+		if err != nil {
+			log.Printf("Failed to create HTTP auditor: %v", err)
+		} else {
+			manager.AddObserver(httpAuditor)
+			log.Printf("Audit logging to URL: %s", cfg.AuditURL)
+		}
+	}
+
+	if !manager.IsEnabled() {
+		log.Printf("Audit is disabled (no audit-file or audit-url configured)")
+	}
+
+	return manager
+}
+
+// CreateRouter создает и настраивает роутер Gin с обработчиками метрик и middleware.
+// Настраивает маршруты для обновления и получения метрик, поддерживает HMAC аутентификацию
+// и сжатие данных.
+// Параметры:
+//   - storage: хранилище метрик
+//   - key: ключ для HMAC аутентификации (если пустой, HMAC не используется)
+//
+// Возвращает настроенный роутер Gin.
+func CreateRouter(storage repository.Storage, key string, auditManager *audit.AuditManager) *gin.Engine {
+	var metricsHandler *handler.MetricsHandler
+	if auditManager != nil && auditManager.IsEnabled() {
+		metricsHandler = handler.NewMetricHandlerWithAudit(storage, auditManager)
+	} else {
+		metricsHandler = handler.NewMetricHandler(storage)
+	}
+
 	logger, err := zap.NewProduction()
 	if err != nil {
 		log.Fatal("err: problem starting logger")
@@ -139,6 +197,21 @@ func CreateRouter(storage repository.Storage, key string) *gin.Engine {
 	router.POST("/update/:type/:name/", func(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 	})
+	pprofGroup := router.Group("/debug/pprof")
+	{
+		pprofGroup.GET("/", gin.WrapF(pprof.Index))
+		pprofGroup.GET("/cmdline", gin.WrapF(pprof.Cmdline))
+		pprofGroup.GET("/profile", gin.WrapF(pprof.Profile))
+		pprofGroup.POST("/symbol", gin.WrapF(pprof.Symbol))
+		pprofGroup.GET("/symbol", gin.WrapF(pprof.Symbol))
+		pprofGroup.GET("/trace", gin.WrapF(pprof.Trace))
+		pprofGroup.GET("/allocs", gin.WrapH(pprof.Handler("allocs")))
+		pprofGroup.GET("/block", gin.WrapH(pprof.Handler("block")))
+		pprofGroup.GET("/goroutine", gin.WrapH(pprof.Handler("goroutine")))
+		pprofGroup.GET("/heap", gin.WrapH(pprof.Handler("heap")))
+		pprofGroup.GET("/mutex", gin.WrapH(pprof.Handler("mutex")))
+		pprofGroup.GET("/threadcreate", gin.WrapH(pprof.Handler("threadcreate")))
+	}
 
 	router.NoRoute(func(c *gin.Context) {
 		c.AbortWithStatus(http.StatusNotFound)

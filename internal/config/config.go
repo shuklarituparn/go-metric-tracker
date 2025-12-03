@@ -1,12 +1,15 @@
+// Package config предоставляет функционал для загрузки и валидации конфигурации приложения.
 package config
 
 import "fmt"
 
+// Config объединяет парсер и валидатор конфигурации.
 type Config struct {
 	parser    *ConfigParser
 	validator *ConfigValidator
 }
 
+// NewConfig создает новый экземпляр Config с парсером и валидатором.
 func NewConfig() *Config {
 	return &Config{
 		parser:    NewConfigParser(),
@@ -14,6 +17,8 @@ func NewConfig() *Config {
 	}
 }
 
+// LoadAgentConfig загружает и валидирует конфигурацию агента.
+// Возвращает ошибку, если конфигурация невалидна или не может быть загружена.
 func (c *Config) LoadAgentConfig() (*AgentConfig, error) {
 	config, err := c.parser.ParseAgentConfig()
 	if err != nil {
@@ -25,6 +30,8 @@ func (c *Config) LoadAgentConfig() (*AgentConfig, error) {
 	return config, nil
 }
 
+// LoadServerConfig загружает и валидирует конфигурацию сервера.
+// Возвращает ошибку, если конфигурация невалидна или не может быть загружена.
 func (c *Config) LoadServerConfig() (*ServerConfig, error) {
 	config, err := c.parser.ParseServerConfig()
 	if err != nil {

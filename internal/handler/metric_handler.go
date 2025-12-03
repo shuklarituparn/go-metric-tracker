@@ -1,25 +1,59 @@
+// Package handler предоставляет HTTP обработчики для работы с метриками.
 package handler
 
 import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shuklarituparn/go-metric-tracker/internal/audit"
 	models "github.com/shuklarituparn/go-metric-tracker/internal/model"
 	"github.com/shuklarituparn/go-metric-tracker/internal/repository"
 )
 
+// MetricsHandler обрабатывает HTTP запросы для работы с метриками.
 type MetricsHandler struct {
-	storage repository.Storage
+	storage      repository.Storage
+	auditManager *audit.AuditManager
 }
 
+// NewMetricHandler создает новый экземпляр обработчика метрик.
+// Принимает storage - хранилище метрик, реализующее интерфейс repository.Storage.
 func NewMetricHandler(storage repository.Storage) *MetricsHandler {
 	return &MetricsHandler{
-		storage: storage,
+		storage:      storage,
+		auditManager: nil,
 	}
 }
 
+func NewMetricHandlerWithAudit(storage repository.Storage, auditManager *audit.AuditManager) *MetricsHandler {
+	return &MetricsHandler{
+		storage:      storage,
+		auditManager: auditManager,
+	}
+}
+func (h *MetricsHandler) sendAudit(c *gin.Context, metricNames []string) {
+	if h.auditManager != nil && h.auditManager.IsEnabled() {
+		event := audit.AuditEvent{
+			Timestamp: time.Now().Unix(),
+			Metrics:   metricNames,
+			IPAddress: c.ClientIP(),
+		}
+		h.auditManager.Notify(event)
+	}
+}
+
+// UpdateMetric обрабатывает запрос на обновление метрики через URL параметры.
+// Маршрут: POST /update/:type/:name/:value
+// Параметры:
+//   - type: тип метрики (gauge или counter)
+//   - name: имя метрики
+//   - value: значение метрики
+//
+// Возвращает HTTP 200 при успехе, HTTP 400 при некорректных данных,
+// HTTP 404 если не указано имя метрики, HTTP 500 при ошибке сервера.
 func (h *MetricsHandler) UpdateMetric(c *gin.Context) {
 	metricType := c.Param("type")
 	metricName := c.Param("name")
@@ -68,6 +102,14 @@ func (h *MetricsHandler) UpdateMetric(c *gin.Context) {
 	}
 }
 
+// GetMetric обрабатывает запрос на получение значения метрики через URL параметры.
+// Маршрут: GET /value/:type/:name
+// Параметры:
+//   - type: тип метрики (gauge или counter)
+//   - name: имя метрики
+//
+// Возвращает значение метрики в виде строки при успехе (HTTP 200),
+// HTTP 404 если метрика не найдена, HTTP 400 при некорректном типе.
 func (h *MetricsHandler) GetMetric(c *gin.Context) {
 	metricType := c.Param("type")
 	metricName := c.Param("name")
@@ -100,6 +142,16 @@ func (h *MetricsHandler) GetMetric(c *gin.Context) {
 	}
 }
 
+// UpdateMetricJSON обрабатывает запрос на обновление метрики в формате JSON.
+// Маршрут: POST /update/
+// Ожидает JSON тело запроса с полями:
+//   - id: имя метрики
+//   - type: тип метрики (gauge или counter)
+//   - value: значение для gauge метрики
+//   - delta: значение для counter метрики
+//
+// Возвращает обновленную метрику в формате JSON при успехе (HTTP 200),
+// HTTP 400 при некорректных данных, HTTP 500 при ошибке сервера.
 func (h *MetricsHandler) UpdateMetricJSON(c *gin.Context) {
 	var metric models.Metrics
 
@@ -129,6 +181,7 @@ func (h *MetricsHandler) UpdateMetricJSON(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+		h.sendAudit(c, []string{metric.ID})
 		c.JSON(http.StatusOK, metric)
 
 	case models.Counter:
@@ -142,6 +195,7 @@ func (h *MetricsHandler) UpdateMetricJSON(c *gin.Context) {
 		}
 		newValue, _ := h.storage.GetCounter(metric.ID)
 		metric.Delta = &newValue
+		h.sendAudit(c, []string{metric.ID})
 		c.JSON(http.StatusOK, metric)
 
 	default:
@@ -150,6 +204,13 @@ func (h *MetricsHandler) UpdateMetricJSON(c *gin.Context) {
 	}
 }
 
+// GetMetricJSON обрабатывает запрос на получение метрики в формате JSON.
+// Маршрут: POST /value/
+// Ожидает JSON тело запроса с полями:
+//   - id: имя метрики
+//
+// Возвращает метрику в формате JSON при успехе (HTTP 200),
+// HTTP 404 если метрика не найдена, HTTP 400 при некорректном JSON.
 func (h *MetricsHandler) GetMetricJSON(c *gin.Context) {
 	var metric models.Metrics
 
@@ -172,6 +233,9 @@ func (h *MetricsHandler) GetMetricJSON(c *gin.Context) {
 	c.JSON(http.StatusOK, storedMetric)
 }
 
+// DBHandler обрабатывает запрос проверки подключения к базе данных.
+// Маршрут: GET /ping
+// Возвращает HTTP 200 если подключение к БД успешно, HTTP 500 при ошибке.
 func (h *MetricsHandler) DBHandler(c *gin.Context) {
 	if dbStorage, ok := h.storage.(*repository.DBStorage); ok {
 		if err := dbStorage.Ping(); err != nil {

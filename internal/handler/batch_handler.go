@@ -8,10 +8,23 @@ import (
 	models "github.com/shuklarituparn/go-metric-tracker/internal/model"
 )
 
+// BatchUpdater определяет интерфейс для пакетного обновления метрик.
 type BatchUpdater interface {
 	UpdateBatch([]models.Metrics) error
 }
 
+
+// UpdateMetricsBatch обрабатывает запрос на пакетное обновление метрик в формате JSON.
+// Маршрут: POST /updates/
+// Ожидает JSON массив метрик в теле запроса.
+// Каждая метрика должна содержать:
+//   - id: имя метрики
+//   - type: тип метрики (gauge или counter)
+//   - value: значение для gauge метрики (опционально)
+//   - delta: значение для counter метрики (опционально)
+//
+// Возвращает массив обновленных метрик в формате JSON при успехе (HTTP 200),
+// HTTP 400 при некорректных данных, HTTP 500 при ошибке сервера.
 func (h *MetricsHandler) UpdateMetricsBatch(c *gin.Context) {
 	var metrics []models.Metrics
 	if err := c.ShouldBindJSON(&metrics); err != nil {
@@ -62,6 +75,12 @@ func (h *MetricsHandler) UpdateMetricsBatch(c *gin.Context) {
 			}
 		}
 	}
+
+	metricNames := make([]string, 0, len(metrics))
+	for _, metric := range metrics {
+		metricNames = append(metricNames, metric.ID)
+	}
+	h.sendAudit(c, metricNames)
 
 	var response []models.Metrics
 	for _, metric := range metrics {
