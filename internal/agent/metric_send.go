@@ -1,3 +1,4 @@
+// Package agent sends the metric
 package agent
 
 import (
@@ -36,14 +37,15 @@ type MetricStorageSender struct {
 type Sender struct {
 	client         *http.Client
 	serverAddress  string
-	reportInterval time.Duration
+	key            string
 	storage        repository.Storage
 	ticker         *time.Ticker
-	useBatch       bool
 	retryConfig    retry.RetryConfig
-	key            string
+	reportInterval time.Duration
 	rateLimiter    int
+	useBatch       bool
 }
+
 
 func NewStorageSender(collector Collector, storage repository.Storage, interval time.Duration) StorageSender {
 	return &MetricStorageSender{
@@ -220,8 +222,8 @@ func (s *Sender) sendMetricsBatchInternal() error {
 	}
 	compressedData, err := utils.CompressedData(metricJSON)
 	if err != nil {
-		if err := s.sendBatchUncompressed(metricJSON); err != nil {
-			return fmt.Errorf("error: problem sending uncompressed metrics: %v", err)
+		if sendErr := s.sendBatchUncompressed(metricJSON); sendErr != nil {
+			return fmt.Errorf("error: problem sending uncompressed metrics: %v", sendErr)
 		}
 		return fmt.Errorf("error: problem compressing the metrics: %v", err)
 	}
@@ -231,13 +233,16 @@ func (s *Sender) sendMetricsBatchInternal() error {
 		return fmt.Errorf("error: problem sending the metrics:%v", err)
 	}
 	resp, err := s.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("error: problem sending the metrics:%v", err)
+	}
 	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			log.Printf("failed to close response body: %v", err)
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			log.Printf("failed to close response body: %v", closeErr)
 		}
 	}()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("error: problem with server code %v", err)
+		return fmt.Errorf("error: problem with server code %v", resp.StatusCode)
 	}
 
 	log.Printf("Successfully sent %d metrics in batch", len(metrics))

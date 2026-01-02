@@ -1,3 +1,5 @@
+//Package agent defines the agent
+
 package agent
 
 import (
@@ -23,10 +25,10 @@ type Collector interface {
 
 type MetricCollector struct {
 	metrics      map[string]models.Metrics
-	mu           sync.RWMutex
-	pollCount    int64
-	pollInterval time.Duration
 	ticker       *time.Ticker
+	mu           sync.RWMutex
+	pollInterval time.Duration
+	pollCount    int64
 }
 
 func NewMetricCollector(pollInterval time.Duration) Collector {

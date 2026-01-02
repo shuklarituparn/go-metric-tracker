@@ -1,3 +1,4 @@
+// Package db is used to interact with the database
 package db
 
 import (

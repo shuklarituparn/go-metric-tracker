@@ -8,24 +8,24 @@ import (
 )
 
 type AgentConfig struct {
-	Endpoint       string        `env:"ADDRESS"`
+	Endpoint       string `env:"ADDRESS"`
+	Key            string `env:"KEY"`
+	RetryConfig    retry.RetryConfig
 	ReportInterval time.Duration `env:"REPORT_INTERVAL"`
 	PollInterval   time.Duration `env:"POLL_INTERVAL"`
-	RetryConfig    retry.RetryConfig
-	Key            string `env:"KEY"`
-	Ratelimit      int    `env:"RATE_LIMIT"`
+	Ratelimit      int           `env:"RATE_LIMIT"`
 }
 
 type ServerConfig struct {
 	Endpoint              string `env:"ADDRESS"`
 	StoreInterval         string `env:"STORE_INTERVAL"`
 	FileStoragePath       string `env:"FILE_STORAGE_PATH"`
-	Restore               bool   `env:"RESTORE"`
-	StoreIntervalDuration time.Duration
-	DBConfig              *db.Config
 	Key                   string `env:"KEY"`
 	DatabaseDSN           string `env:"DATABASE_DSN"`
-	RetryConfig           retry.RetryConfig
 	AuditFile             string `env:"AUDIT_FILE"`
 	AuditURL              string `env:"AUDIT_URL"`
+	DBConfig              *db.Config
+	RetryConfig           retry.RetryConfig
+	StoreIntervalDuration time.Duration
+	Restore               bool `env:"RESTORE"`
 }

@@ -10,11 +10,12 @@ import (
 )
 
 type HealthStatus struct {
+	Checks    map[string]string `json:"checks,omitempty"`
 	Status    string            `json:"status"`
 	Timestamp string            `json:"timestamp"`
 	Uptime    string            `json:"uptime"`
-	Checks    map[string]string `json:"checks,omitempty"`
 }
+
 
 type HealthHandler struct {
 	storage   repository.Storage

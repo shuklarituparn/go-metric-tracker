@@ -15,12 +15,12 @@ import (
 
 type FileStorage struct {
 	*MemStorage
-	filePath      string
-	storeInterval time.Duration
-	syncWrite     bool
-	mu            sync.RWMutex
 	ctx           context.Context
 	cancel        context.CancelFunc
+	filePath      string
+	mu            sync.RWMutex
+	storeInterval time.Duration
+	syncWrite     bool
 }
 
 func NewFileStorage(filePath string, storeInterval time.Duration, restore bool) *FileStorage {

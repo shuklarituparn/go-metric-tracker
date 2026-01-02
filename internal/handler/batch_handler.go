@@ -13,7 +13,6 @@ type BatchUpdater interface {
 	UpdateBatch([]models.Metrics) error
 }
 
-
 // UpdateMetricsBatch обрабатывает запрос на пакетное обновление метрик в формате JSON.
 // Маршрут: POST /updates/
 // Ожидает JSON массив метрик в теле запроса.

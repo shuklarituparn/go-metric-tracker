@@ -21,8 +21,10 @@ func TestMetricsHandler_BatchUpdateWithAudit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
+	if closeErr := tmpFile.Close(); closeErr != nil {
+		t.Fatalf("Failed to close temp file: %v", closeErr)
+	}
 
 	auditManager := audit.NewAuditManager()
 	fileAuditor, err := audit.NewFileAuditor(tmpFile.Name())
@@ -93,13 +95,22 @@ func TestMetricsHandler_BatchUpdateMultipleAuditors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
+	if closeErr := tmpFile.Close(); closeErr != nil {
+		t.Fatalf("Failed to close temp file: %v", closeErr)
+	}
 
 	var httpReceived audit.AuditEvent
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		json.Unmarshal(body, &httpReceived)
+		body, readErr := io.ReadAll(r.Body)
+		if readErr != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if unmarshalErr := json.Unmarshal(body, &httpReceived); unmarshalErr != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()

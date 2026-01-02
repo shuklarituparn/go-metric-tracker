@@ -1,3 +1,5 @@
+//Package agent creates a new agent
+
 package main
 
 import (

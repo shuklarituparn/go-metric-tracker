@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"os"
 	"strings"
 	"testing"
@@ -15,7 +16,7 @@ func TestAuditEvent_Marshal(t *testing.T) {
 	event := AuditEvent{
 		Timestamp: 1234567890,
 		Metrics:   []string{"Alloc", "Frees"},
-		IPAddress: "192.168.0.42",
+		IPAddress: netip.MustParseAddr("192.168.0.42"),
 	}
 
 	data, err := json.Marshal(event)
@@ -24,8 +25,9 @@ func TestAuditEvent_Marshal(t *testing.T) {
 	}
 
 	var decoded AuditEvent
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatalf("Failed to unmarshal audit event: %v", err)
+	unmarshalErr := json.Unmarshal(data, &decoded)
+	if unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal audit event: %v", unmarshalErr)
 	}
 
 	if decoded.Timestamp != event.Timestamp {
@@ -35,7 +37,7 @@ func TestAuditEvent_Marshal(t *testing.T) {
 		t.Errorf("Expected %d metrics, got %d", len(event.Metrics), len(decoded.Metrics))
 	}
 	if decoded.IPAddress != event.IPAddress {
-		t.Errorf("Expected IP %s, got %s", event.IPAddress, decoded.IPAddress)
+		t.Errorf("Expected IP %s, got %s", event.IPAddress.String(), decoded.IPAddress.String())
 	}
 }
 
@@ -50,8 +52,10 @@ func TestAuditManager_AddObserver(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
+	if closeErr := tmpFile.Close(); closeErr != nil {
+		t.Fatalf("Failed to close temp file: %v", closeErr)
+	}
 
 	auditor, err := NewFileAuditor(tmpFile.Name())
 	if err != nil {
@@ -70,8 +74,10 @@ func TestFileAuditor_Notify(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
+	if closeErr := tmpFile.Close(); closeErr != nil {
+		t.Fatalf("Failed to close temp file: %v", closeErr)
+	}
 
 	auditor, err := NewFileAuditor(tmpFile.Name())
 	if err != nil {
@@ -81,11 +87,12 @@ func TestFileAuditor_Notify(t *testing.T) {
 	event := AuditEvent{
 		Timestamp: time.Now().Unix(),
 		Metrics:   []string{"metric1", "metric2"},
-		IPAddress: "127.0.0.1",
+		IPAddress: netip.MustParseAddr("127.0.0.1"),
 	}
 
-	if err := auditor.Notify(event); err != nil {
-		t.Fatalf("Failed to notify file auditor: %v", err)
+	notifyErr := auditor.Notify(event)
+	if notifyErr != nil {
+		t.Fatalf("Failed to notify file auditor: %v", notifyErr)
 	}
 
 	data, err := os.ReadFile(tmpFile.Name())
@@ -99,12 +106,13 @@ func TestFileAuditor_Notify(t *testing.T) {
 		t.Fatalf("Expected 1 line in audit file, got %d", len(lines))
 	}
 
-	if err := json.Unmarshal([]byte(lines[0]), &decoded); err != nil {
-		t.Fatalf("Failed to unmarshal audit event from file: %v", err)
+	unmarshalErr := json.Unmarshal([]byte(lines[0]), &decoded)
+	if unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal audit event from file: %v", unmarshalErr)
 	}
 
 	if decoded.IPAddress != event.IPAddress {
-		t.Errorf("Expected IP %s, got %s", event.IPAddress, decoded.IPAddress)
+		t.Errorf("Expected IP %s, got %s", event.IPAddress.String(), decoded.IPAddress.String())
 	}
 	if len(decoded.Metrics) != len(event.Metrics) {
 		t.Errorf("Expected %d metrics, got %d", len(event.Metrics), len(decoded.Metrics))
@@ -116,8 +124,10 @@ func TestFileAuditor_MultipleNotifications(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
+	if closeErr := tmpFile.Close(); closeErr != nil {
+		t.Fatalf("Failed to close temp file: %v", closeErr)
+	}
 
 	auditor, err := NewFileAuditor(tmpFile.Name())
 	if err != nil {
@@ -128,10 +138,11 @@ func TestFileAuditor_MultipleNotifications(t *testing.T) {
 		event := AuditEvent{
 			Timestamp: time.Now().Unix(),
 			Metrics:   []string{"metric1"},
-			IPAddress: "127.0.0.1",
+			IPAddress: netip.MustParseAddr("127.0.0.1"),
 		}
-		if err := auditor.Notify(event); err != nil {
-			t.Fatalf("Failed to notify file auditor: %v", err)
+		notifyErr := auditor.Notify(event)
+		if notifyErr != nil {
+			t.Fatalf("Failed to notify file auditor: %v", notifyErr)
 		}
 	}
 
@@ -174,8 +185,9 @@ func TestHTTPAuditor_Notify(t *testing.T) {
 			t.Fatalf("Failed to read request body: %v", err)
 		}
 
-		if err := json.Unmarshal(body, &receivedEvent); err != nil {
-			t.Fatalf("Failed to unmarshal request body: %v", err)
+		unmarshalErr := json.Unmarshal(body, &receivedEvent)
+		if unmarshalErr != nil {
+			t.Fatalf("Failed to unmarshal request body: %v", unmarshalErr)
 		}
 
 		w.WriteHeader(http.StatusOK)
@@ -190,15 +202,16 @@ func TestHTTPAuditor_Notify(t *testing.T) {
 	event := AuditEvent{
 		Timestamp: time.Now().Unix(),
 		Metrics:   []string{"metric1", "metric2"},
-		IPAddress: "192.168.1.1",
+		IPAddress: netip.MustParseAddr("192.168.1.1"),
 	}
 
-	if err := auditor.Notify(event); err != nil {
-		t.Fatalf("Failed to notify HTTP auditor: %v", err)
+	notifyErr := auditor.Notify(event)
+	if notifyErr != nil {
+		t.Fatalf("Failed to notify HTTP auditor: %v", notifyErr)
 	}
 
 	if receivedEvent.IPAddress != event.IPAddress {
-		t.Errorf("Expected IP %s, got %s", event.IPAddress, receivedEvent.IPAddress)
+		t.Errorf("Expected IP %s, got %s", event.IPAddress.String(), receivedEvent.IPAddress.String())
 	}
 	if len(receivedEvent.Metrics) != len(event.Metrics) {
 		t.Errorf("Expected %d metrics, got %d", len(event.Metrics), len(receivedEvent.Metrics))
@@ -219,10 +232,11 @@ func TestHTTPAuditor_ServerError(t *testing.T) {
 	event := AuditEvent{
 		Timestamp: time.Now().Unix(),
 		Metrics:   []string{"metric1"},
-		IPAddress: "127.0.0.1",
+		IPAddress: netip.MustParseAddr("127.0.0.1"),
 	}
 
-	if err := auditor.Notify(event); err == nil {
+	notifyErr := auditor.Notify(event)
+	if notifyErr == nil {
 		t.Error("Expected error when server returns 500")
 	}
 }
@@ -243,10 +257,11 @@ func TestHTTPAuditor_NetworkError(t *testing.T) {
 	event := AuditEvent{
 		Timestamp: time.Now().Unix(),
 		Metrics:   []string{"metric1"},
-		IPAddress: "127.0.0.1",
+		IPAddress: netip.MustParseAddr("127.0.0.1"),
 	}
 
-	if err := auditor.Notify(event); err == nil {
+	notifyErr := auditor.Notify(event)
+	if notifyErr == nil {
 		t.Error("Expected network error for invalid URL")
 	}
 }
@@ -258,8 +273,10 @@ func TestAuditManager_Notify(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
+	if closeErr := tmpFile.Close(); closeErr != nil {
+		t.Fatalf("Failed to close temp file: %v", closeErr)
+	}
 
 	auditor, err := NewFileAuditor(tmpFile.Name())
 	if err != nil {
@@ -271,7 +288,7 @@ func TestAuditManager_Notify(t *testing.T) {
 	event := AuditEvent{
 		Timestamp: time.Now().Unix(),
 		Metrics:   []string{"metric1", "metric2"},
-		IPAddress: "192.168.0.1",
+		IPAddress: netip.MustParseAddr("192.168.0.1"),
 	}
 
 	manager.Notify(event)
@@ -289,12 +306,13 @@ func TestAuditManager_Notify(t *testing.T) {
 
 	var decoded AuditEvent
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-	if err := json.Unmarshal([]byte(lines[0]), &decoded); err != nil {
-		t.Fatalf("Failed to unmarshal audit event from file: %v", err)
+	unmarshalErr := json.Unmarshal([]byte(lines[0]), &decoded)
+	if unmarshalErr != nil {
+		t.Fatalf("Failed to unmarshal audit event from file: %v", unmarshalErr)
 	}
 
 	if decoded.IPAddress != event.IPAddress {
-		t.Errorf("Expected IP %s, got %s", event.IPAddress, decoded.IPAddress)
+		t.Errorf("Expected IP %s, got %s", event.IPAddress.String(), decoded.IPAddress.String())
 	}
 }
 
@@ -305,8 +323,10 @@ func TestAuditManager_MultipleObservers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
+	if closeErr := tmpFile.Close(); closeErr != nil {
+		t.Fatalf("Failed to close temp file: %v", closeErr)
+	}
 
 	fileAuditor, err := NewFileAuditor(tmpFile.Name())
 	if err != nil {
@@ -330,7 +350,7 @@ func TestAuditManager_MultipleObservers(t *testing.T) {
 	event := AuditEvent{
 		Timestamp: time.Now().Unix(),
 		Metrics:   []string{"metric1"},
-		IPAddress: "127.0.0.1",
+		IPAddress: netip.MustParseAddr("127.0.0.1"),
 	}
 
 	manager.Notify(event)
@@ -357,8 +377,10 @@ func TestAuditManager_ConcurrentNotify(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
+	if closeErr := tmpFile.Close(); closeErr != nil {
+		t.Fatalf("Failed to close temp file: %v", closeErr)
+	}
 
 	auditor, err := NewFileAuditor(tmpFile.Name())
 	if err != nil {
@@ -372,7 +394,7 @@ func TestAuditManager_ConcurrentNotify(t *testing.T) {
 			event := AuditEvent{
 				Timestamp: time.Now().Unix(),
 				Metrics:   []string{"metric1"},
-				IPAddress: "127.0.0.1",
+				IPAddress: netip.MustParseAddr("127.0.0.1"),
 			}
 			manager.Notify(event)
 			done <- true

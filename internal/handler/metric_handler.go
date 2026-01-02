@@ -4,6 +4,7 @@ package handler
 import (
 	"log"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"time"
 
@@ -34,12 +35,19 @@ func NewMetricHandlerWithAudit(storage repository.Storage, auditManager *audit.A
 		auditManager: auditManager,
 	}
 }
+
 func (h *MetricsHandler) sendAudit(c *gin.Context, metricNames []string) {
 	if h.auditManager != nil && h.auditManager.IsEnabled() {
+		ipAddr, err := netip.ParseAddr(c.ClientIP())
+		if err != nil {
+			log.Printf("Failed to parse IP address for audit: %v", err)
+			return
+		}
+		
 		event := audit.AuditEvent{
 			Timestamp: time.Now().Unix(),
 			Metrics:   metricNames,
-			IPAddress: c.ClientIP(),
+			IPAddress: ipAddr,
 		}
 		h.auditManager.Notify(event)
 	}

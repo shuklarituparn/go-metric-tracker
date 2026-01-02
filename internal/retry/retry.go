@@ -1,3 +1,4 @@
+// Package retry provides retry helpers with backoff for transient failures.
 package retry
 
 import (
@@ -14,8 +15,8 @@ import (
 )
 
 type RetryConfig struct {
-	MaxAttempts int
 	Intervals   []time.Duration
+	MaxAttempts int
 }
 
 func DefaultConfig() RetryConfig {

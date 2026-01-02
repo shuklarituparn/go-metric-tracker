@@ -1,3 +1,4 @@
+// Package audit provides lightweight audit event recording and fan-out.
 package audit
 
 import (
@@ -6,15 +7,17 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/netip"
 	"os"
 	"sync"
 	"time"
 )
 
+//nolint:govet
 type AuditEvent struct {
-	Timestamp int64    `json:"ts"`
-	Metrics   []string `json:"metrics"`
-	IPAddress string   `json:"ip_address"`
+	IPAddress netip.Addr `json:"ip_address"`
+	Metrics   []string   `json:"metrics"`
+	Timestamp int64      `json:"ts"`
 }
 
 type AuditObserver interface {
@@ -71,7 +74,9 @@ func NewFileAuditor(filePath string) (*FileAuditor, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open audit file: %w", err)
 	}
-	file.Close()
+	if closeErr := file.Close(); closeErr != nil {
+		return nil, fmt.Errorf("failed to close audit file: %w", closeErr)
+	}
 
 	return &FileAuditor{
 		filePath: filePath,
@@ -86,7 +91,7 @@ func (fa *FileAuditor) Notify(event AuditEvent) error {
 	if err != nil {
 		return fmt.Errorf("failed to open audit file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	data, err := json.Marshal(event)
 	if err != nil {
@@ -102,7 +107,7 @@ func (fa *FileAuditor) Notify(event AuditEvent) error {
 
 type HTTPAuditor struct {
 	url    string
-	client *http.Client
+	client http.Client
 }
 
 func NewHTTPAuditor(url string) (*HTTPAuditor, error) {
@@ -112,7 +117,7 @@ func NewHTTPAuditor(url string) (*HTTPAuditor, error) {
 
 	return &HTTPAuditor{
 		url: url,
-		client: &http.Client{
+		client: http.Client{
 			Timeout: 5 * time.Second,
 		},
 	}, nil
@@ -128,7 +133,7 @@ func (ha *HTTPAuditor) Notify(event AuditEvent) error {
 	if err != nil {
 		return fmt.Errorf("failed to send audit event: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("audit server returned error status: %d", resp.StatusCode)
