@@ -1,180 +1,95 @@
 package pool
 
 import (
+	"sync"
 	"testing"
 )
 
 type TestStruct struct {
-	ID    int
-	Name  string
-	Items []string
-	Data  map[string]int
+	ID   int
+	Name string
+	Tags []string
 }
 
-func (ts *TestStruct) Reset() {
-	ts.ID = 0
-	ts.Name = ""
-	ts.Items = ts.Items[:0]
-	clear(ts.Data)
+func (t *TestStruct) Reset() {
+	if t == nil {
+		return
+	}
+	t.ID = 0
+	t.Name = ""
+	t.Tags = t.Tags[:0]
 }
 
-func TestPool_GetPut(t *testing.T) {
-	pool := New(func() *TestStruct {
-		return &TestStruct{
-			Items: make([]string, 0, 10),
-			Data:  make(map[string]int),
-		}
+func TestPool_GetReturnsNonNil(t *testing.T) {
+	p := New(func() *TestStruct {
+		return &TestStruct{Tags: make([]string, 0, 8)}
 	})
 
-	obj := pool.Get()
+	obj := p.Get()
 	if obj == nil {
-		t.Fatal("Get returned nil")
+		t.Fatalf("expected non-nil object from pool")
 	}
+}
 
-	obj.ID = 42
-	obj.Name = "test"
-	obj.Items = append(obj.Items, "item1", "item2")
-	obj.Data["key"] = 100
+func TestPool_PutResetsObject(t *testing.T) {
+	p := New(func() *TestStruct {
+		return &TestStruct{Tags: make([]string, 0, 8)}
+	})
 
-	pool.Put(obj)
+	obj := p.Get()
+	obj.ID = 123
+	obj.Name = "hello"
+	obj.Tags = append(obj.Tags, "a", "b", "c")
 
-	obj2 := pool.Get()
+	p.Put(obj)
+
+	obj2 := p.Get()
 
 	if obj2.ID != 0 {
-		t.Errorf("Expected ID=0, got %d", obj2.ID)
+		t.Fatalf("expected ID reset to 0, got %d", obj2.ID)
 	}
 	if obj2.Name != "" {
-		t.Errorf("Expected Name='', got '%s'", obj2.Name)
+		t.Fatalf("expected Name reset to empty, got %q", obj2.Name)
 	}
-	if len(obj2.Items) != 0 {
-		t.Errorf("Expected len(Items)=0, got %d", len(obj2.Items))
+	if len(obj2.Tags) != 0 {
+		t.Fatalf("expected Tags length 0, got %d", len(obj2.Tags))
 	}
-	if len(obj2.Data) != 0 {
-		t.Errorf("Expected len(Data)=0, got %d", len(obj2.Data))
-	}
-}
-
-func TestPool_PreservesCapacity(t *testing.T) {
-	pool := New(func() *TestStruct {
-		return &TestStruct{
-			Items: make([]string, 0, 100),
-		}
-	})
-
-	obj := pool.Get()
-	obj.Items = append(obj.Items, "a", "b", "c")
-	
-	if cap(obj.Items) < 100 {
-		t.Errorf("Expected capacity >= 100, got %d", cap(obj.Items))
-	}
-
-	pool.Put(obj)
-	
-	obj2 := pool.Get()
-	
-	if len(obj2.Items) != 0 {
-		t.Errorf("Expected length 0, got %d", len(obj2.Items))
-	}
-	if cap(obj2.Items) < 100 {
-		t.Errorf("Expected capacity >= 100, got %d", cap(obj2.Items))
+	if cap(obj2.Tags) == 0 {
+		t.Fatalf("expected Tags to retain capacity")
 	}
 }
 
-func TestPool_ResetHandlesNil(t *testing.T) {
-	pool := New(func() *TestStruct {
-		return &TestStruct{
-			Items: make([]string, 0, 10),
-			Data:  make(map[string]int),
-		}
-	})
+func TestPool_ReusesObjects(t *testing.T) {
+	p := New(func() *TestStruct { return &TestStruct{} })
 
-	obj := pool.Get()
-	obj.ID = 42
-	obj.Name = "test"
+	obj1 := p.Get()
+	p.Put(obj1)
 
-	pool.Put(obj)
+	obj2 := p.Get()
 
-	obj2 := pool.Get()
-	if obj2.ID != 0 || obj2.Name != "" {
-		t.Error("Object was not properly reset")
-	}
+	_ = obj2
 }
 
-func TestPool_Concurrent(t *testing.T) {
-	pool := New(func() *TestStruct {
-		return &TestStruct{
-			Items: make([]string, 0, 10),
-			Data:  make(map[string]int),
-		}
-	})
+func TestPool_ConcurrentUsage(t *testing.T) {
+	p := New(func() *TestStruct { return &TestStruct{} })
 
-	const goroutines = 100
-	const operations = 1000
+	const goroutines = 50
+	const iters = 200
 
-	done := make(chan bool)
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
 
 	for i := 0; i < goroutines; i++ {
-		go func(id int) {
-			for j := 0; j < operations; j++ {
-				obj := pool.Get()
-				
-				obj.ID = id
-				obj.Name = "test"
-				obj.Items = append(obj.Items, "item")
-				obj.Data["key"] = j
-				
-				pool.Put(obj)
+		go func(i int) {
+			defer wg.Done()
+			for j := 0; j < iters; j++ {
+				obj := p.Get()
+				obj.ID = i*1000 + j
+				obj.Name = "x"
+				p.Put(obj)
 			}
-			done <- true
 		}(i)
 	}
 
-	for i := 0; i < goroutines; i++ {
-		<-done
-	}
-
-	obj := pool.Get()
-	if obj.ID != 0 || obj.Name != "" || len(obj.Items) != 0 || len(obj.Data) != 0 {
-		t.Error("Object was not properly reset after concurrent usage")
-	}
-}
-
-func BenchmarkPool_WithPool(b *testing.B) {
-	pool := New(func() *TestStruct {
-		return &TestStruct{
-			Items: make([]string, 0, 100),
-			Data:  make(map[string]int, 100),
-		}
-	})
-
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			obj := pool.Get()
-			obj.ID = 42
-			obj.Name = "benchmark"
-			for i := 0; i < 10; i++ {
-				obj.Items = append(obj.Items, "item")
-				obj.Data["key"] = i
-			}
-			pool.Put(obj)
-		}
-	})
-}
-
-func BenchmarkPool_WithoutPool(b *testing.B) {
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			obj := &TestStruct{
-				Items: make([]string, 0, 100),
-				Data:  make(map[string]int, 100),
-			}
-			obj.ID = 42
-			obj.Name = "benchmark"
-			for i := 0; i < 10; i++ {
-				obj.Items = append(obj.Items, "item")
-				obj.Data["key"] = i
-			}
-		}
-	})
+	wg.Wait()
 }

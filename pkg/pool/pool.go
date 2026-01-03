@@ -2,31 +2,27 @@ package pool
 
 import "sync"
 
+
 type Resettable interface {
 	Reset()
 }
 
-type Pool[T any] struct {
+
+type Pool[T Resettable] struct {
 	pool sync.Pool
-	new  func() *T
 }
 
-func New[T any](newFunc func() *T) *Pool[T] {
-	p := &Pool[T]{new: newFunc}
-	p.pool.New = func() any { return newFunc() }
+func New[T Resettable](newFn func() T) *Pool[T] {
+	p := &Pool[T]{}
+	p.pool.New = func() any { return newFn() }
 	return p
 }
 
-func (p *Pool[T]) Get() *T {
-	return p.pool.Get().(*T)
+func (p *Pool[T]) Get() T {
+	return p.pool.Get().(T)
 }
 
-func (p *Pool[T]) Put(obj *T) {
-	if obj == nil {
-		return
-	}
-	if resetter, ok := any(obj).(Resettable); ok {
-		resetter.Reset()
-	}
-	p.pool.Put(obj)
+func (p *Pool[T]) Put(v T) {
+	v.Reset()
+	p.pool.Put(v)
 }
