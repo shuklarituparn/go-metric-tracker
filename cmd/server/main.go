@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -9,8 +10,26 @@ import (
 	"github.com/shuklarituparn/go-metric-tracker/internal/config"
 	"github.com/shuklarituparn/go-metric-tracker/internal/router"
 )
+var buildVersion string
+var buildDate string
+var buildCommit string
+
+func na(v string) string {
+	if v == "" {
+		return "N/A"
+	}
+	return v
+}
+
+func printBuildInfo() {
+	fmt.Printf("Build version: %s\n", na(buildVersion))
+	fmt.Printf("Build date: %s\n", na(buildDate))
+	fmt.Printf("Build commit: %s\n", na(buildCommit))
+}
+
 
 func main() {
+	printBuildInfo()
 	cfg, err := config.NewConfig().LoadServerConfig()
 	if err != nil {
 		log.Fatalf("error loading server config :%v", err)

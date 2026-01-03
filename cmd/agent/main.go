@@ -15,7 +15,26 @@ import (
 	"github.com/shuklarituparn/go-metric-tracker/internal/repository"
 )
 
+var buildVersion string
+var buildDate string
+var buildCommit string
+
+func na(v string) string {
+	if v == "" {
+		return "N/A"
+	}
+	return v
+}
+
+func printBuildInfo() {
+	fmt.Printf("Build version: %s\n", na(buildVersion))
+	fmt.Printf("Build date: %s\n", na(buildDate))
+	fmt.Printf("Build commit: %s\n", na(buildCommit))
+}
+
+
 func main() {
+	printBuildInfo()
 	cfg, err := config.NewConfig().LoadAgentConfig()
 	if err != nil {
 		log.Fatalf("can't load agent config :%v", err)
