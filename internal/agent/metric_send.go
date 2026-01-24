@@ -46,7 +46,6 @@ type Sender struct {
 	useBatch       bool
 }
 
-
 func NewStorageSender(collector Collector, storage repository.Storage, interval time.Duration) StorageSender {
 	return &MetricStorageSender{
 		collector: collector,

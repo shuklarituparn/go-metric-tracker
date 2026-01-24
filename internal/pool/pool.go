@@ -2,11 +2,9 @@ package pool
 
 import "sync"
 
-
 type Resettable interface {
 	Reset()
 }
-
 
 type Pool[T Resettable] struct {
 	pool sync.Pool

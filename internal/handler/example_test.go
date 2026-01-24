@@ -106,10 +106,10 @@ func ExampleMetricsHandler_GetMetricJSON() {
 
 	// Сначала сохраняем метрику
 	value := 100.0
-	err:=storage.UpdateGauge("memory_usage", value)
+	err := storage.UpdateGauge("memory_usage", value)
 	if err == nil {
-			fmt.Println("Gauge updated successfully")
-		}
+		fmt.Println("Gauge updated successfully")
+	}
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -129,10 +129,10 @@ func ExampleMetricsHandler_GetMetricJSON() {
 	router.ServeHTTP(w, req)
 
 	var response models.Metrics
-	err=json.Unmarshal(w.Body.Bytes(), &response)
+	err = json.Unmarshal(w.Body.Bytes(), &response)
 	if err == nil {
-			fmt.Println("Body unmarshalled successfully")
-		}
+		fmt.Println("Body unmarshalled successfully")
+	}
 
 	fmt.Printf("Status: %d, Value: %.0f\n", w.Code, *response.Value)
 	// Output:

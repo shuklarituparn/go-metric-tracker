@@ -16,7 +16,6 @@ type HealthStatus struct {
 	Uptime    string            `json:"uptime"`
 }
 
-
 type HealthHandler struct {
 	storage   repository.Storage
 	startTime time.Time

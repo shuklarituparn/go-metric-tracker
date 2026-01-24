@@ -43,7 +43,7 @@ func (h *MetricsHandler) sendAudit(c *gin.Context, metricNames []string) {
 			log.Printf("Failed to parse IP address for audit: %v", err)
 			return
 		}
-		
+
 		event := audit.AuditEvent{
 			Timestamp: time.Now().Unix(),
 			Metrics:   metricNames,
