@@ -32,7 +32,7 @@ func main() {
 		log.Fatalf("can't load agent config :%v", err)
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	defer stop()
 
 	storage := repository.NewMemStorage()
@@ -56,5 +56,18 @@ func main() {
 	stop()
 	log.Println("Shutting down agent...")
 
+	// Останавливаем сбор метрик
+	metricCollector.Stop()
+
+	// Останавливаем периодическую отправку в локальное хранилище
+	storageSender.Stop()
+
+	// Останавливаем периодическую отправку на сервер
+	serverSender.Stop()
+
+	// Собираем последние метрики и отправляем на сервер
+	storageSender.SendToStorage()
+	log.Println("Sending final metrics to server...")
 	serverSender.SendMetrics()
+	log.Println("Agent shutdown complete")
 }

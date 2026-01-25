@@ -20,10 +20,12 @@ import (
 
 type StorageSender interface {
 	Start()
+	Stop()
 	SendToStorage() error
 }
 type ServerSender interface {
 	Start()
+	Stop()
 	SendMetrics()
 	SendMetricsBatch() error
 }
@@ -72,6 +74,13 @@ func (mss *MetricStorageSender) Start() {
 
 }
 
+func (mss *MetricStorageSender) Stop() {
+	if mss.ticker != nil {
+		mss.ticker.Stop()
+		log.Println("Storage sender stopped")
+	}
+}
+
 func (mss *MetricStorageSender) SendToStorage() error {
 
 	metrics := mss.collector.GetMetrics()
@@ -109,7 +118,6 @@ func NewSender(serverAddress string, reportInterval time.Duration, storage repos
 	}
 }
 
-// NewSenderWithCrypto создает Sender с поддержкой асимметричного шифрования.
 func NewSenderWithCrypto(serverAddress string, reportInterval time.Duration, storage repository.Storage, key string, rateLimiter int, cryptoKeyPath string) ServerSender {
 	sender := &Sender{
 		client:         &http.Client{},
@@ -142,6 +150,13 @@ func (s *Sender) Start() {
 			s.SendMetrics()
 		}
 	}()
+}
+
+func (s *Sender) Stop() {
+	if s.ticker != nil {
+		s.ticker.Stop()
+		log.Println("Server sender stopped")
+	}
 }
 
 func (s *Sender) SendMetrics() {
@@ -194,7 +209,6 @@ func (s *Sender) SendMetric(metric models.Metrics) error {
 		return fmt.Errorf("err: failed to compress data: %s", err.Error())
 	}
 
-	// Шифруем данные если есть публичный ключ
 	dataToSend := compressedData
 	isEncrypted := false
 	if s.publicKey != nil {
@@ -270,7 +284,6 @@ func (s *Sender) sendMetricsBatchInternal() error {
 		return fmt.Errorf("error: problem compressing the metrics: %v", err)
 	}
 
-	// Шифруем данные если есть публичный ключ
 	dataToSend := compressedData
 	isEncrypted := false
 	if s.publicKey != nil {

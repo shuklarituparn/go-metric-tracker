@@ -19,6 +19,7 @@ import (
 
 type Collector interface {
 	Start()
+	Stop()
 	Collect()
 	GetMetrics() map[string]models.Metrics
 }
@@ -149,4 +150,11 @@ func (mc *MetricCollector) GetMetrics() map[string]models.Metrics {
 	metricsCopy := make(map[string]models.Metrics, len(mc.metrics))
 	maps.Copy(metricsCopy, mc.metrics)
 	return metricsCopy
+}
+
+func (mc *MetricCollector) Stop() {
+	if mc.ticker != nil {
+		mc.ticker.Stop()
+		log.Println("Metric collector stopped")
+	}
 }

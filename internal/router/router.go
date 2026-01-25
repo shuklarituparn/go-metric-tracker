@@ -35,12 +35,18 @@ func NewRouterWithFS(cfg *config.ServerConfig) *gin.Engine {
 	if cleanup != nil {
 		go func() {
 			signChan := make(chan os.Signal, 1)
-			signal.Notify(signChan, syscall.SIGINT, syscall.SIGTERM)
+			signal.Notify(signChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 			<-signChan
 			cleanup()
 		}()
 	}
 	return router
+}
+
+// NewRouterWithCleanup создает новый роутер и возвращает функцию очистки для graceful shutdown.
+// Эта функция используется для более точного контроля над процессом завершения работы.
+func NewRouterWithCleanup(cfg *config.ServerConfig) (*gin.Engine, func()) {
+	return NewRouterWithStorage(cfg)
 }
 
 // NewRouterWithStorage создает новый роутер и инициализирует хранилище на основе конфигурации.
@@ -112,7 +118,6 @@ func NewRouterWithStorage(cfg *config.ServerConfig) (*gin.Engine, func()) {
 	}
 	auditManager := createAuditManager(cfg)
 
-	// Загружаем приватный ключ для расшифровки, если указан
 	var privateKey *rsa.PrivateKey
 	if cfg.CryptoKey != "" {
 		var err error
