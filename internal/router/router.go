@@ -2,6 +2,7 @@
 package router
 
 import (
+	"crypto/rsa"
 	"log"
 	"net/http"
 	"net/http/pprof"
@@ -15,6 +16,7 @@ import (
 	"github.com/shuklarituparn/go-metric-tracker/internal/handler"
 	"github.com/shuklarituparn/go-metric-tracker/internal/middleware"
 	"github.com/shuklarituparn/go-metric-tracker/internal/repository"
+	"github.com/shuklarituparn/go-metric-tracker/internal/utils"
 	"go.uber.org/zap"
 )
 
@@ -110,11 +112,23 @@ func NewRouterWithStorage(cfg *config.ServerConfig) (*gin.Engine, func()) {
 	}
 	auditManager := createAuditManager(cfg)
 
+	// Загружаем приватный ключ для расшифровки, если указан
+	var privateKey *rsa.PrivateKey
+	if cfg.CryptoKey != "" {
+		var err error
+		privateKey, err = utils.LoadPrivateKey(cfg.CryptoKey)
+		if err != nil {
+			log.Printf("Failed to load private key from %s: %v", cfg.CryptoKey, err)
+		} else {
+			log.Printf("Loaded private key for decryption from %s", cfg.CryptoKey)
+		}
+	}
+
 	if cfg.Key != "" {
-		router = CreateRouter(storage, cfg.Key, auditManager)
+		router = CreateRouter(storage, cfg.Key, auditManager, privateKey)
 
 	} else {
-		router = CreateRouter(storage, "", auditManager)
+		router = CreateRouter(storage, "", auditManager, privateKey)
 	}
 	return router, cleanup
 }
@@ -150,14 +164,16 @@ func createAuditManager(cfg *config.ServerConfig) *audit.AuditManager {
 }
 
 // CreateRouter создает и настраивает роутер Gin с обработчиками метрик и middleware.
-// Настраивает маршруты для обновления и получения метрик, поддерживает HMAC аутентификацию
-// и сжатие данных.
+// Настраивает маршруты для обновления и получения метрик, поддерживает HMAC аутентификацию,
+// асимметричное шифрование и сжатие данных.
 // Параметры:
 //   - storage: хранилище метрик
 //   - key: ключ для HMAC аутентификации (если пустой, HMAC не используется)
+//   - auditManager: менеджер аудита
+//   - privateKey: приватный RSA ключ для расшифровки (если nil, расшифровка не используется)
 //
 // Возвращает настроенный роутер Gin.
-func CreateRouter(storage repository.Storage, key string, auditManager *audit.AuditManager) *gin.Engine {
+func CreateRouter(storage repository.Storage, key string, auditManager *audit.AuditManager, privateKey *rsa.PrivateKey) *gin.Engine {
 	var metricsHandler *handler.MetricsHandler
 	if auditManager != nil && auditManager.IsEnabled() {
 		metricsHandler = handler.NewMetricHandlerWithAudit(storage, auditManager)
@@ -183,6 +199,9 @@ func CreateRouter(storage repository.Storage, key string, auditManager *audit.Au
 	router.Use(middleware.Logger(logger))
 	if key != "" {
 		router.Use(middleware.HMACMiddleware(key))
+	}
+	if privateKey != nil {
+		router.Use(middleware.DecryptionMiddleware(privateKey))
 	}
 	router.Use(middleware.CompressionMiddleware())
 	router.Use(middleware.DecompressionMiddleware())

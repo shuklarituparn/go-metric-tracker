@@ -35,6 +35,7 @@ type agentFlags struct {
 	pollInterval   string
 	retryIntervals string
 	key            string
+	cryptoKey      string
 	rateLimit      int
 }
 
@@ -46,6 +47,7 @@ type serverFlags struct {
 	databaseDSN     string
 	retryIntervals  string
 	key             string
+	cryptoKey       string
 	auditFile       string
 	auditURL        string
 }
@@ -103,6 +105,7 @@ func (p *ConfigParser) ParseAgentFlags(args []string) (*agentFlags, error) {
 	fs.StringVar(&flags.pollInterval, "p", p.defaults.PollInterval, "poll interval (seconds)")
 	fs.StringVar(&flags.retryIntervals, "retry-intervals", p.defaults.AgentRetryIntervals, "retry intervals in seconds, comma-separated (e.g., '1,3,5')")
 	fs.StringVar(&flags.key, "k", p.defaults.Key, "key for the hmac signature")
+	fs.StringVar(&flags.cryptoKey, "crypto-key", "", "path to public key file for asymmetric encryption")
 	fs.IntVar(&flags.rateLimit, "l", 3, "rate-limit value")
 
 	if err := fs.Parse(args); err != nil {
@@ -122,6 +125,7 @@ func (p *ConfigParser) ParseServerFlags(args []string) (*serverFlags, error) {
 	fs.StringVar(&flags.databaseDSN, "d", "", "database DSN")
 	fs.StringVar(&flags.retryIntervals, "retry-intervals", "", "retry intervals in seconds, comma-separated (e.g., '2,4,8')")
 	fs.StringVar(&flags.key, "k", p.defaults.Key, "key for the hmac signature")
+	fs.StringVar(&flags.cryptoKey, "crypto-key", "", "path to private key file for asymmetric decryption")
 	fs.StringVar(&flags.auditFile, "audit-file", "", "audit file path")
 	fs.StringVar(&flags.auditURL, "audit-url", "", "audit URL")
 	if err := fs.Parse(args); err != nil {
@@ -161,6 +165,9 @@ func (p *ConfigParser) MergeServerFlags(cfg *ServerConfig, flags *serverFlags) (
 	if flags.key != "" {
 		serverConfig.Key = flags.key
 	}
+	if flags.cryptoKey != "" {
+		serverConfig.CryptoKey = flags.cryptoKey
+	}
 	if flags.auditFile != "" {
 		serverConfig.AuditFile = flags.auditFile
 	}
@@ -189,6 +196,9 @@ func (p *ConfigParser) MergeAgentFlags(cfg *AgentConfig, flags *agentFlags) (*Ag
 	}
 	if flags.key != "" {
 		agentConfig.Key = flags.key
+	}
+	if flags.cryptoKey != "" {
+		agentConfig.CryptoKey = flags.cryptoKey
 	}
 	if flags.rateLimit > 0 {
 		agentConfig.Ratelimit = flags.rateLimit

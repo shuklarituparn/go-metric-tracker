@@ -4,6 +4,7 @@ package agent
 import (
 	"bytes"
 	"context"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -38,6 +39,7 @@ type Sender struct {
 	client         *http.Client
 	serverAddress  string
 	key            string
+	publicKey      *rsa.PublicKey
 	storage        repository.Storage
 	ticker         *time.Ticker
 	retryConfig    retry.RetryConfig
@@ -107,6 +109,32 @@ func NewSender(serverAddress string, reportInterval time.Duration, storage repos
 	}
 }
 
+// NewSenderWithCrypto создает Sender с поддержкой асимметричного шифрования.
+func NewSenderWithCrypto(serverAddress string, reportInterval time.Duration, storage repository.Storage, key string, rateLimiter int, cryptoKeyPath string) ServerSender {
+	sender := &Sender{
+		client:         &http.Client{},
+		serverAddress:  serverAddress,
+		reportInterval: reportInterval,
+		storage:        storage,
+		useBatch:       true,
+		retryConfig:    retry.DefaultConfig(),
+		key:            key,
+		rateLimiter:    rateLimiter,
+	}
+
+	if cryptoKeyPath != "" {
+		publicKey, err := utils.LoadPublicKey(cryptoKeyPath)
+		if err != nil {
+			log.Printf("Failed to load public key from %s: %v", cryptoKeyPath, err)
+		} else {
+			sender.publicKey = publicKey
+			log.Printf("Loaded public key for encryption from %s", cryptoKeyPath)
+		}
+	}
+
+	return sender
+}
+
 func (s *Sender) Start() {
 	s.ticker = time.NewTicker(s.reportInterval)
 	go func() {
@@ -166,18 +194,33 @@ func (s *Sender) SendMetric(metric models.Metrics) error {
 		return fmt.Errorf("err: failed to compress data: %s", err.Error())
 	}
 
+	// Шифруем данные если есть публичный ключ
+	dataToSend := compressedData
+	isEncrypted := false
+	if s.publicKey != nil {
+		encryptedData, err := utils.EncryptData(compressedData, s.publicKey)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt data: %w", err)
+		}
+		dataToSend = encryptedData
+		isEncrypted = true
+	}
+
 	url := fmt.Sprintf("%s/update/", s.serverAddress)
 
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(compressedData))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(dataToSend))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 	if s.key != "" {
-		hash := utils.CalculateHMAC(compressedData, s.key)
+		hash := utils.CalculateHMAC(dataToSend, s.key)
 		req.Header.Set("HashSHA256", hash)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	if isEncrypted {
+		req.Header.Set("Content-Encrypted", "rsa")
+	}
 	req.Header.Set("Content-Encoding", "gzip")
 	req.Header.Set("Accept-Encoding", "gzip")
 
@@ -226,11 +269,35 @@ func (s *Sender) sendMetricsBatchInternal() error {
 		}
 		return fmt.Errorf("error: problem compressing the metrics: %v", err)
 	}
+
+	// Шифруем данные если есть публичный ключ
+	dataToSend := compressedData
+	isEncrypted := false
+	if s.publicKey != nil {
+		encryptedData, err := utils.EncryptData(compressedData, s.publicKey)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt batch data: %w", err)
+		}
+		dataToSend = encryptedData
+		isEncrypted = true
+	}
+
 	url := fmt.Sprintf("%s/updates/", s.serverAddress)
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(compressedData))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(dataToSend))
 	if err != nil {
 		return fmt.Errorf("error: problem sending the metrics:%v", err)
 	}
+
+	if s.key != "" {
+		hash := utils.CalculateHMAC(dataToSend, s.key)
+		req.Header.Set("HashSHA256", hash)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if isEncrypted {
+		req.Header.Set("Content-Encrypted", "rsa")
+	}
+	req.Header.Set("Content-Encoding", "gzip")
+
 	resp, err := s.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("error: problem sending the metrics:%v", err)

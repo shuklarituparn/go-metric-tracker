@@ -44,7 +44,12 @@ func main() {
 
 	time.Sleep(2 * time.Second)
 	fullendpoint := fmt.Sprintf("http://%s", cfg.Endpoint)
-	serverSender := agent.NewSender(fullendpoint, cfg.ReportInterval, storage, cfg.Key, cfg.Ratelimit)
+	var serverSender agent.ServerSender
+	if cfg.CryptoKey != "" {
+		serverSender = agent.NewSenderWithCrypto(fullendpoint, cfg.ReportInterval, storage, cfg.Key, cfg.Ratelimit, cfg.CryptoKey)
+	} else {
+		serverSender = agent.NewSender(fullendpoint, cfg.ReportInterval, storage, cfg.Key, cfg.Ratelimit)
+	}
 	serverSender.Start()
 
 	<-ctx.Done()
