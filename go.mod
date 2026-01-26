@@ -3,6 +3,7 @@ module github.com/shuklarituparn/go-metric-tracker
 go 1.24.5
 
 require (
+	github.com/caarlos0/env/v6 v6.10.1
 	github.com/gin-gonic/gin v1.10.1
 	github.com/gordonklaus/ineffassign v0.2.0
 	github.com/jackc/pgerrcode v0.0.0-20250907135507-afb5586c32a6
