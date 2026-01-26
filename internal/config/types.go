@@ -26,6 +26,7 @@ type ServerConfig struct {
 	DatabaseDSN           string `env:"DATABASE_DSN"`
 	AuditFile             string `env:"AUDIT_FILE"`
 	AuditURL              string `env:"AUDIT_URL"`
+	TrustedSubnet         string `env:"TRUSTED_SUBNET"`
 	DBConfig              *db.Config
 	RetryConfig           retry.RetryConfig
 	StoreIntervalDuration time.Duration

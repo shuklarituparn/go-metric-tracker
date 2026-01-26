@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"time"
 
@@ -17,6 +18,21 @@ import (
 	"github.com/shuklarituparn/go-metric-tracker/internal/utils"
 	"golang.org/x/sync/errgroup"
 )
+
+func getLocalIP() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+	for _, address := range addrs {
+		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String()
+			}
+		}
+	}
+	return ""
+}
 
 type StorageSender interface {
 	Start()
@@ -231,6 +247,11 @@ func (s *Sender) SendMetric(metric models.Metrics) error {
 		req.Header.Set("HashSHA256", hash)
 	}
 
+	// Add X-Real-IP header with the agent's IP address
+	if localIP := getLocalIP(); localIP != "" {
+		req.Header.Set("X-Real-IP", localIP)
+	}
+
 	req.Header.Set("Content-Type", "application/json")
 	if isEncrypted {
 		req.Header.Set("Content-Encrypted", "rsa")
@@ -284,6 +305,7 @@ func (s *Sender) sendMetricsBatchInternal() error {
 		return fmt.Errorf("error: problem compressing the metrics: %v", err)
 	}
 
+	// Шифруем данные если есть публичный ключ
 	dataToSend := compressedData
 	isEncrypted := false
 	if s.publicKey != nil {
@@ -305,6 +327,12 @@ func (s *Sender) sendMetricsBatchInternal() error {
 		hash := utils.CalculateHMAC(dataToSend, s.key)
 		req.Header.Set("HashSHA256", hash)
 	}
+
+	// Add X-Real-IP header with the agent's IP address
+	if localIP := getLocalIP(); localIP != "" {
+		req.Header.Set("X-Real-IP", localIP)
+	}
+
 	req.Header.Set("Content-Type", "application/json")
 	if isEncrypted {
 		req.Header.Set("Content-Encrypted", "rsa")
@@ -334,6 +362,11 @@ func (s *Sender) sendBatchUncompressed(data []byte) error {
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(data))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Add X-Real-IP header with the agent's IP address
+	if localIP := getLocalIP(); localIP != "" {
+		req.Header.Set("X-Real-IP", localIP)
 	}
 
 	req.Header.Set("Content-Type", "application/json")

@@ -51,6 +51,7 @@ type serverFlags struct {
 	cryptoKey       string
 	auditFile       string
 	auditURL        string
+	trustedSubnet   string
 	configFile      string
 }
 
@@ -132,6 +133,7 @@ func (p *ConfigParser) ParseServerFlags(args []string) (*serverFlags, error) {
 	fs.StringVar(&flags.cryptoKey, "crypto-key", "", "path to private key file for asymmetric decryption")
 	fs.StringVar(&flags.auditFile, "audit-file", "", "audit file path")
 	fs.StringVar(&flags.auditURL, "audit-url", "", "audit URL")
+	fs.StringVar(&flags.trustedSubnet, "t", "", "trusted subnet in CIDR notation (e.g., '192.168.1.0/24')")
 	fs.StringVar(&flags.configFile, "c", "", "path to JSON config file")
 	fs.StringVar(&flags.configFile, "config", "", "path to JSON config file")
 	if err := fs.Parse(args); err != nil {
@@ -180,6 +182,9 @@ func (p *ConfigParser) MergeServerFlags(cfg *ServerConfig, flags *serverFlags) (
 	}
 	if flags.auditURL != "" {
 		serverConfig.AuditURL = flags.auditURL
+	}
+	if flags.trustedSubnet != "" {
+		serverConfig.TrustedSubnet = flags.trustedSubnet
 	}
 	return &serverConfig, nil
 }

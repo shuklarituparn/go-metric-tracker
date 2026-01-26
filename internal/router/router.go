@@ -20,7 +20,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// StorageCloser объединяет интерфейс хранилища с методом закрытия ресурсов.
 type StorageCloser interface {
 	repository.Storage
 	Close()
@@ -130,10 +129,10 @@ func NewRouterWithStorage(cfg *config.ServerConfig) (*gin.Engine, func()) {
 	}
 
 	if cfg.Key != "" {
-		router = CreateRouter(storage, cfg.Key, auditManager, privateKey)
+		router = CreateRouter(storage, cfg.Key, auditManager, privateKey, cfg.TrustedSubnet)
 
 	} else {
-		router = CreateRouter(storage, "", auditManager, privateKey)
+		router = CreateRouter(storage, "", auditManager, privateKey, cfg.TrustedSubnet)
 	}
 	return router, cleanup
 }
@@ -176,9 +175,10 @@ func createAuditManager(cfg *config.ServerConfig) *audit.AuditManager {
 //   - key: ключ для HMAC аутентификации (если пустой, HMAC не используется)
 //   - auditManager: менеджер аудита
 //   - privateKey: приватный RSA ключ для расшифровки (если nil, расшифровка не используется)
+//   - trustedSubnet: CIDR нотация доверенной подсети (если пустая, ограничения не применяются)
 //
 // Возвращает настроенный роутер Gin.
-func CreateRouter(storage repository.Storage, key string, auditManager *audit.AuditManager, privateKey *rsa.PrivateKey) *gin.Engine {
+func CreateRouter(storage repository.Storage, key string, auditManager *audit.AuditManager, privateKey *rsa.PrivateKey, trustedSubnet string) *gin.Engine {
 	var metricsHandler *handler.MetricsHandler
 	if auditManager != nil && auditManager.IsEnabled() {
 		metricsHandler = handler.NewMetricHandlerWithAudit(storage, auditManager)
@@ -202,6 +202,7 @@ func CreateRouter(storage repository.Storage, key string, auditManager *audit.Au
 
 	router.Use(gin.Recovery())
 	router.Use(middleware.Logger(logger))
+	router.Use(middleware.TrustedSubnetMiddleware(trustedSubnet))
 	if key != "" {
 		router.Use(middleware.HMACMiddleware(key))
 	}

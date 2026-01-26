@@ -10,7 +10,6 @@ import (
 	"github.com/shuklarituparn/go-metric-tracker/internal/config/db"
 )
 
-// ServerJSONConfig represents server configuration from JSON file.
 type ServerJSONConfig struct {
 	Address       string `json:"address"`
 	Restore       *bool  `json:"restore"`
@@ -18,9 +17,9 @@ type ServerJSONConfig struct {
 	StoreFile     string `json:"store_file"`
 	DatabaseDSN   string `json:"database_dsn"`
 	CryptoKey     string `json:"crypto_key"`
+	TrustedSubnet string `json:"trusted_subnet"`
 }
 
-// AgentJSONConfig represents agent configuration from JSON file.
 type AgentJSONConfig struct {
 	Address        string `json:"address"`
 	ReportInterval string `json:"report_interval"`
@@ -28,15 +27,12 @@ type AgentJSONConfig struct {
 	CryptoKey      string `json:"crypto_key"`
 }
 
-// JSONConfigLoader handles loading configuration from JSON files.
 type JSONConfigLoader struct{}
 
-// NewJSONConfigLoader creates a new JSONConfigLoader instance.
 func NewJSONConfigLoader() *JSONConfigLoader {
 	return &JSONConfigLoader{}
 }
 
-// LoadServerJSONConfig loads server configuration from a JSON file.
 func (l *JSONConfigLoader) LoadServerJSONConfig(filePath string) (*ServerJSONConfig, error) {
 	if filePath == "" {
 		return nil, nil
@@ -55,7 +51,6 @@ func (l *JSONConfigLoader) LoadServerJSONConfig(filePath string) (*ServerJSONCon
 	return &cfg, nil
 }
 
-// LoadAgentJSONConfig loads agent configuration from a JSON file.
 func (l *JSONConfigLoader) LoadAgentJSONConfig(filePath string) (*AgentJSONConfig, error) {
 	if filePath == "" {
 		return nil, nil
@@ -74,8 +69,7 @@ func (l *JSONConfigLoader) LoadAgentJSONConfig(filePath string) (*AgentJSONConfi
 	return &cfg, nil
 }
 
-// ApplyServerJSONConfig applies JSON configuration to ServerConfig.
-// Only non-empty values from JSON config are applied.
+
 func (l *JSONConfigLoader) ApplyServerJSONConfig(cfg *ServerConfig, jsonCfg *ServerJSONConfig) {
 	if jsonCfg == nil {
 		return
@@ -104,10 +98,12 @@ func (l *JSONConfigLoader) ApplyServerJSONConfig(cfg *ServerConfig, jsonCfg *Ser
 	if jsonCfg.CryptoKey != "" {
 		cfg.CryptoKey = jsonCfg.CryptoKey
 	}
+	if jsonCfg.TrustedSubnet != "" {
+		cfg.TrustedSubnet = jsonCfg.TrustedSubnet
+	}
 }
 
-// ApplyAgentJSONConfig applies JSON configuration to AgentConfig.
-// Only non-empty values from JSON config are applied.
+
 func (l *JSONConfigLoader) ApplyAgentJSONConfig(cfg *AgentConfig, jsonCfg *AgentJSONConfig) {
 	if jsonCfg == nil {
 		return
@@ -127,8 +123,7 @@ func (l *JSONConfigLoader) ApplyAgentJSONConfig(cfg *AgentConfig, jsonCfg *Agent
 	}
 }
 
-// parseDuration parses duration string in format "1s", "10s", "1m", etc.
-// Falls back to parsing as seconds if no unit is specified.
+
 func (l *JSONConfigLoader) parseDuration(s string) time.Duration {
 	if s == "" {
 		return 0
@@ -145,7 +140,6 @@ func (l *JSONConfigLoader) parseDuration(s string) time.Duration {
 	return 0
 }
 
-// parseIntervalToSeconds converts duration string to seconds string for StoreInterval field.
 func (l *JSONConfigLoader) parseIntervalToSeconds(s string) string {
 	if s == "" {
 		return ""
