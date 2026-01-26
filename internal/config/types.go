@@ -9,6 +9,7 @@ import (
 
 type AgentConfig struct {
 	Endpoint       string `env:"ADDRESS"`
+	GRPCEndpoint   string `env:"GRPC_ADDRESS"`
 	Key            string `env:"KEY"`
 	CryptoKey      string `env:"CRYPTO_KEY"`
 	RetryConfig    retry.RetryConfig
@@ -19,6 +20,7 @@ type AgentConfig struct {
 
 type ServerConfig struct {
 	Endpoint              string `env:"ADDRESS"`
+	GRPCEndpoint          string `env:"GRPC_ADDRESS"`
 	StoreInterval         string `env:"STORE_INTERVAL"`
 	FileStoragePath       string `env:"FILE_STORAGE_PATH"`
 	Key                   string `env:"KEY"`

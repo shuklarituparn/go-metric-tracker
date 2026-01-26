@@ -13,6 +13,7 @@ import (
 	"github.com/shuklarituparn/go-metric-tracker/internal/agent"
 	"github.com/shuklarituparn/go-metric-tracker/internal/buildinfo"
 	"github.com/shuklarituparn/go-metric-tracker/internal/config"
+	grpcclient "github.com/shuklarituparn/go-metric-tracker/internal/grpc"
 	"github.com/shuklarituparn/go-metric-tracker/internal/repository"
 )
 
@@ -43,14 +44,27 @@ func main() {
 	storageSender.Start()
 
 	time.Sleep(2 * time.Second)
-	fullendpoint := fmt.Sprintf("http://%s", cfg.Endpoint)
+
 	var serverSender agent.ServerSender
-	if cfg.CryptoKey != "" {
-		serverSender = agent.NewSenderWithCrypto(fullendpoint, cfg.ReportInterval, storage, cfg.Key, cfg.Ratelimit, cfg.CryptoKey)
+	var grpcSender *grpcclient.GRPCSender
+
+	if cfg.GRPCEndpoint != "" {
+		log.Printf("Using gRPC transport to %s", cfg.GRPCEndpoint)
+		grpcSender, err = grpcclient.NewGRPCSender(cfg.GRPCEndpoint, cfg.ReportInterval, storage)
+		if err != nil {
+			log.Fatalf("Failed to create gRPC sender: %v", err)
+		}
+		grpcSender.Start()
 	} else {
-		serverSender = agent.NewSender(fullendpoint, cfg.ReportInterval, storage, cfg.Key, cfg.Ratelimit)
+		fullendpoint := fmt.Sprintf("http://%s", cfg.Endpoint)
+		log.Printf("Using HTTP transport to %s", fullendpoint)
+		if cfg.CryptoKey != "" {
+			serverSender = agent.NewSenderWithCrypto(fullendpoint, cfg.ReportInterval, storage, cfg.Key, cfg.Ratelimit, cfg.CryptoKey)
+		} else {
+			serverSender = agent.NewSender(fullendpoint, cfg.ReportInterval, storage, cfg.Key, cfg.Ratelimit)
+		}
+		serverSender.Start()
 	}
-	serverSender.Start()
 
 	<-ctx.Done()
 	stop()
@@ -60,10 +74,24 @@ func main() {
 
 	storageSender.Stop()
 
-	serverSender.Stop()
+	if err := storageSender.SendToStorage(); err != nil {
+		log.Printf("Error sending final metrics to storage: %v", err)
+	}
 
-	storageSender.SendToStorage()
-	log.Println("Sending final metrics to server...")
-	serverSender.SendMetrics()
+	if grpcSender != nil {
+		grpcSender.Stop()
+		log.Println("Sending final metrics to server via gRPC...")
+		if err := grpcSender.SendMetricsBatch(); err != nil {
+			log.Printf("Error sending final metrics via gRPC: %v", err)
+		}
+		if err := grpcSender.Close(); err != nil {
+			log.Printf("Error closing gRPC connection: %v", err)
+		}
+	} else if serverSender != nil {
+		serverSender.Stop()
+		log.Println("Sending final metrics to server via HTTP...")
+		serverSender.SendMetrics()
+	}
+
 	log.Println("Agent shutdown complete")
 }

@@ -20,6 +20,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// StorageCloser объединяет интерфейс хранилища с методом закрытия ресурсов.
 type StorageCloser interface {
 	repository.Storage
 	Close()
@@ -45,13 +46,25 @@ func NewRouterWithFS(cfg *config.ServerConfig) *gin.Engine {
 // NewRouterWithCleanup создает новый роутер и возвращает функцию очистки для graceful shutdown.
 // Эта функция используется для более точного контроля над процессом завершения работы.
 func NewRouterWithCleanup(cfg *config.ServerConfig) (*gin.Engine, func()) {
-	return NewRouterWithStorage(cfg)
+	router, cleanup, _ := NewRouterWithStorageAndCleanup(cfg)
+	return router, cleanup
+}
+
+// NewRouterWithStorageAndCleanup creates a router and also returns the storage for use by gRPC server.
+func NewRouterWithStorageAndCleanup(cfg *config.ServerConfig) (*gin.Engine, func(), repository.Storage) {
+	return newRouterWithStorageInternal(cfg)
 }
 
 // NewRouterWithStorage создает новый роутер и инициализирует хранилище на основе конфигурации.
 // Поддерживает как базу данных (PostgreSQL), так и файловое хранилище.
 // Возвращает настроенный роутер и функцию очистки ресурсов.
 func NewRouterWithStorage(cfg *config.ServerConfig) (*gin.Engine, func()) {
+	router, cleanup, _ := newRouterWithStorageInternal(cfg)
+	return router, cleanup
+}
+
+// newRouterWithStorageInternal creates a router with storage and returns all three components.
+func newRouterWithStorageInternal(cfg *config.ServerConfig) (*gin.Engine, func(), repository.Storage) {
 	var storage repository.Storage
 	var cleanup func()
 	var router *gin.Engine
@@ -117,6 +130,7 @@ func NewRouterWithStorage(cfg *config.ServerConfig) (*gin.Engine, func()) {
 	}
 	auditManager := createAuditManager(cfg)
 
+	// Загружаем приватный ключ для расшифровки, если указан
 	var privateKey *rsa.PrivateKey
 	if cfg.CryptoKey != "" {
 		var err error
@@ -134,7 +148,7 @@ func NewRouterWithStorage(cfg *config.ServerConfig) (*gin.Engine, func()) {
 	} else {
 		router = CreateRouter(storage, "", auditManager, privateKey, cfg.TrustedSubnet)
 	}
-	return router, cleanup
+	return router, cleanup, storage
 }
 
 func createAuditManager(cfg *config.ServerConfig) *audit.AuditManager {

@@ -12,6 +12,7 @@ import (
 
 type ServerJSONConfig struct {
 	Address       string `json:"address"`
+	GRPCAddress   string `json:"grpc_address"`
 	Restore       *bool  `json:"restore"`
 	StoreInterval string `json:"store_interval"`
 	StoreFile     string `json:"store_file"`
@@ -22,6 +23,7 @@ type ServerJSONConfig struct {
 
 type AgentJSONConfig struct {
 	Address        string `json:"address"`
+	GRPCAddress    string `json:"grpc_address"`
 	ReportInterval string `json:"report_interval"`
 	PollInterval   string `json:"poll_interval"`
 	CryptoKey      string `json:"crypto_key"`
@@ -78,6 +80,9 @@ func (l *JSONConfigLoader) ApplyServerJSONConfig(cfg *ServerConfig, jsonCfg *Ser
 	if jsonCfg.Address != "" {
 		cfg.Endpoint = jsonCfg.Address
 	}
+	if jsonCfg.GRPCAddress != "" {
+		cfg.GRPCEndpoint = jsonCfg.GRPCAddress
+	}
 	if jsonCfg.Restore != nil {
 		cfg.Restore = *jsonCfg.Restore
 	}
@@ -111,6 +116,9 @@ func (l *JSONConfigLoader) ApplyAgentJSONConfig(cfg *AgentConfig, jsonCfg *Agent
 
 	if jsonCfg.Address != "" {
 		cfg.Endpoint = jsonCfg.Address
+	}
+	if jsonCfg.GRPCAddress != "" {
+		cfg.GRPCEndpoint = jsonCfg.GRPCAddress
 	}
 	if jsonCfg.ReportInterval != "" {
 		cfg.ReportInterval = l.parseDuration(jsonCfg.ReportInterval)
