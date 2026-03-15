@@ -24,3 +24,5 @@ vendor/
 .idea
 .vscode
 bin/server
+bin/staticlint
+bin/reset

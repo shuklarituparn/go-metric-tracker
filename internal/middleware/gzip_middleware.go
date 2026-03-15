@@ -37,7 +37,7 @@ func DecompressionMiddleware() gin.HandlerFunc {
 				c.AbortWithStatusJSON(400, gin.H{"error": "Failed to read request body"})
 				return
 			}
-			if err := c.Request.Body.Close(); err != nil {
+			if err = c.Request.Body.Close(); err != nil {
 				log.Printf("failed to close request body: %s", err.Error())
 			}
 
@@ -47,8 +47,8 @@ func DecompressionMiddleware() gin.HandlerFunc {
 				return
 			}
 			defer func() {
-				if err := reader.Close(); err != nil {
-					log.Printf("error closing reader: %s", err.Error())
+				if closeErr := reader.Close(); closeErr != nil {
+					log.Printf("error closing reader: %s", closeErr.Error())
 				}
 			}()
 
@@ -85,8 +85,8 @@ func CompressionMiddleware() gin.HandlerFunc {
 			return
 		}
 		defer func() {
-			if err := gz.Close(); err != nil {
-				log.Printf("failed to close gzip body: %s", err.Error())
+			if closeErr := gz.Close(); closeErr != nil {
+				log.Printf("failed to close gzip body: %s", closeErr.Error())
 			}
 		}()
 

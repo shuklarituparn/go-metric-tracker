@@ -13,8 +13,10 @@ func Example() {
 	storage := repository.NewMemStorage()
 
 	// Сохраняем gauge метрику
-	storage.UpdateGauge("temperature", 23.5)
-
+	err := storage.UpdateGauge("temperature", 23.5)
+	if err == nil {
+		fmt.Println("Gauge updated successfully")
+	}
 	// Получаем значение
 	value, exists := storage.GetGauge("temperature")
 	if exists {
@@ -53,10 +55,15 @@ func ExampleMemStorage_UpdateCounter() {
 	storage := repository.NewMemStorage()
 
 	// Первое обновление
-	storage.UpdateCounter("requests", 10)
-
+	err := storage.UpdateCounter("requests", 10)
+	if err == nil {
+		fmt.Println("Counter updated successfully")
+	}
 	// Второе обновление (добавляется к предыдущему)
-	storage.UpdateCounter("requests", 5)
+	err = storage.UpdateCounter("requests", 5)
+	if err == nil {
+		fmt.Println("Counter updated successfully")
+	}
 
 	// Получаем итоговое значение
 	value, _ := storage.GetCounter("requests")
@@ -69,7 +76,10 @@ func ExampleMemStorage_UpdateCounter() {
 // Показывает, как безопасно получить значение метрики.
 func ExampleMemStorage_GetGauge() {
 	storage := repository.NewMemStorage()
-	storage.UpdateGauge("temperature", 22.3)
+	err := storage.UpdateGauge("temperature", 22.3)
+	if err == nil {
+		fmt.Println("Gauge updated successfully")
+	}
 
 	value, exists := storage.GetGauge("temperature")
 	if exists {
@@ -94,7 +104,10 @@ func ExampleMemStorage_GetGauge_notFound() {
 // Показывает, как получить значение счетчика.
 func ExampleMemStorage_GetCounter() {
 	storage := repository.NewMemStorage()
-	storage.UpdateCounter("page_views", 100)
+	err := storage.UpdateCounter("page_views", 100)
+	if err == nil {
+		fmt.Println("Counter updated successfully")
+	}
 
 	value, exists := storage.GetCounter("page_views")
 	if exists {
@@ -108,7 +121,10 @@ func ExampleMemStorage_GetCounter() {
 // Показывает универсальный способ получения метрики.
 func ExampleMemStorage_GetMetric() {
 	storage := repository.NewMemStorage()
-	storage.UpdateGauge("temperature", 25.5)
+	err := storage.UpdateGauge("temperature", 25.5)
+	if err == nil {
+		fmt.Println("Gauge updated successfully")
+	}
 
 	metric, exists := storage.GetMetric("temperature")
 	if exists {
@@ -124,8 +140,14 @@ func ExampleMemStorage_GetAllMetrics() {
 	storage := repository.NewMemStorage()
 
 	// Добавляем несколько метрик
-	storage.UpdateGauge("cpu", 45.5)
-	storage.UpdateCounter("requests", 10)
+	err := storage.UpdateGauge("cpu", 45.5)
+	if err == nil {
+		fmt.Println("Gauge updated successfully")
+	}
+	err = storage.UpdateCounter("requests", 10)
+	if err == nil {
+		fmt.Println("Counter updated successfully")
+	}
 
 	metrics := storage.GetAllMetrics()
 	fmt.Printf("Total metrics: %d\n", len(metrics))
@@ -139,9 +161,18 @@ func ExampleMemStorage_concurrentUpdates() {
 	storage := repository.NewMemStorage()
 
 	// Обновляем метрику несколько раз
-	storage.UpdateCounter("concurrent", 1)
-	storage.UpdateCounter("concurrent", 2)
-	storage.UpdateCounter("concurrent", 3)
+	err := storage.UpdateCounter("concurrent", 1)
+	if err == nil {
+		fmt.Println("Counter updated successfully")
+	}
+	err = storage.UpdateCounter("concurrent", 2)
+	if err == nil {
+		fmt.Println("Counter updated successfully")
+	}
+	err = storage.UpdateCounter("concurrent", 3)
+	if err == nil {
+		fmt.Println("Counter updated successfully")
+	}
 
 	value, _ := storage.GetCounter("concurrent")
 	fmt.Printf("Total: %d\n", value)
@@ -156,7 +187,10 @@ func ExampleStorage() {
 	storage := repository.NewMemStorage()
 
 	// Используем методы интерфейса
-	storage.UpdateGauge("test", 42.0)
+	err := storage.UpdateGauge("test", 42.0)
+	if err == nil {
+		fmt.Println("Gauge updated successfully")
+	}
 	value, _ := storage.GetGauge("test")
 
 	fmt.Printf("Value: %.0f\n", value)
@@ -168,7 +202,10 @@ func ExampleStorage() {
 // Показывает работу с метриками только для чтения.
 func ExampleMetricReader() {
 	storage := repository.NewMemStorage()
-	storage.UpdateGauge("readonly", 99.9)
+	err := storage.UpdateGauge("readonly", 99.9)
+	if err == nil {
+		fmt.Println("Gauge updated successfully")
+	}
 
 	// Используем только методы чтения
 	var reader repository.MetricReader = storage

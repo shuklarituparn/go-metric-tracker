@@ -1,11 +1,14 @@
+// Package agent sends the metric
 package agent
 
 import (
 	"bytes"
 	"context"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"time"
 
@@ -16,12 +19,29 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+func getLocalIP() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+	for _, address := range addrs {
+		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String()
+			}
+		}
+	}
+	return ""
+}
+
 type StorageSender interface {
 	Start()
+	Stop()
 	SendToStorage() error
 }
 type ServerSender interface {
 	Start()
+	Stop()
 	SendMetrics()
 	SendMetricsBatch() error
 }
@@ -36,13 +56,14 @@ type MetricStorageSender struct {
 type Sender struct {
 	client         *http.Client
 	serverAddress  string
-	reportInterval time.Duration
+	key            string
+	publicKey      *rsa.PublicKey
 	storage        repository.Storage
 	ticker         *time.Ticker
-	useBatch       bool
 	retryConfig    retry.RetryConfig
-	key            string
+	reportInterval time.Duration
 	rateLimiter    int
+	useBatch       bool
 }
 
 func NewStorageSender(collector Collector, storage repository.Storage, interval time.Duration) StorageSender {
@@ -67,6 +88,13 @@ func (mss *MetricStorageSender) Start() {
 		}
 	}()
 
+}
+
+func (mss *MetricStorageSender) Stop() {
+	if mss.ticker != nil {
+		mss.ticker.Stop()
+		log.Println("Storage sender stopped")
+	}
 }
 
 func (mss *MetricStorageSender) SendToStorage() error {
@@ -106,6 +134,31 @@ func NewSender(serverAddress string, reportInterval time.Duration, storage repos
 	}
 }
 
+func NewSenderWithCrypto(serverAddress string, reportInterval time.Duration, storage repository.Storage, key string, rateLimiter int, cryptoKeyPath string) ServerSender {
+	sender := &Sender{
+		client:         &http.Client{},
+		serverAddress:  serverAddress,
+		reportInterval: reportInterval,
+		storage:        storage,
+		useBatch:       true,
+		retryConfig:    retry.DefaultConfig(),
+		key:            key,
+		rateLimiter:    rateLimiter,
+	}
+
+	if cryptoKeyPath != "" {
+		publicKey, err := utils.LoadPublicKey(cryptoKeyPath)
+		if err != nil {
+			log.Printf("Failed to load public key from %s: %v", cryptoKeyPath, err)
+		} else {
+			sender.publicKey = publicKey
+			log.Printf("Loaded public key for encryption from %s", cryptoKeyPath)
+		}
+	}
+
+	return sender
+}
+
 func (s *Sender) Start() {
 	s.ticker = time.NewTicker(s.reportInterval)
 	go func() {
@@ -113,6 +166,13 @@ func (s *Sender) Start() {
 			s.SendMetrics()
 		}
 	}()
+}
+
+func (s *Sender) Stop() {
+	if s.ticker != nil {
+		s.ticker.Stop()
+		log.Println("Server sender stopped")
+	}
 }
 
 func (s *Sender) SendMetrics() {
@@ -165,18 +225,37 @@ func (s *Sender) SendMetric(metric models.Metrics) error {
 		return fmt.Errorf("err: failed to compress data: %s", err.Error())
 	}
 
+	dataToSend := compressedData
+	isEncrypted := false
+	if s.publicKey != nil {
+		encryptedData, err := utils.EncryptData(compressedData, s.publicKey)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt data: %w", err)
+		}
+		dataToSend = encryptedData
+		isEncrypted = true
+	}
+
 	url := fmt.Sprintf("%s/update/", s.serverAddress)
 
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(compressedData))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(dataToSend))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 	if s.key != "" {
-		hash := utils.CalculateHMAC(compressedData, s.key)
+		hash := utils.CalculateHMAC(dataToSend, s.key)
 		req.Header.Set("HashSHA256", hash)
 	}
 
+	// Add X-Real-IP header with the agent's IP address
+	if localIP := getLocalIP(); localIP != "" {
+		req.Header.Set("X-Real-IP", localIP)
+	}
+
 	req.Header.Set("Content-Type", "application/json")
+	if isEncrypted {
+		req.Header.Set("Content-Encrypted", "rsa")
+	}
 	req.Header.Set("Content-Encoding", "gzip")
 	req.Header.Set("Accept-Encoding", "gzip")
 
@@ -220,24 +299,57 @@ func (s *Sender) sendMetricsBatchInternal() error {
 	}
 	compressedData, err := utils.CompressedData(metricJSON)
 	if err != nil {
-		if err := s.sendBatchUncompressed(metricJSON); err != nil {
-			return fmt.Errorf("error: problem sending uncompressed metrics: %v", err)
+		if sendErr := s.sendBatchUncompressed(metricJSON); sendErr != nil {
+			return fmt.Errorf("error: problem sending uncompressed metrics: %v", sendErr)
 		}
 		return fmt.Errorf("error: problem compressing the metrics: %v", err)
 	}
+
+	// Шифруем данные если есть публичный ключ
+	dataToSend := compressedData
+	isEncrypted := false
+	if s.publicKey != nil {
+		encryptedData, err := utils.EncryptData(compressedData, s.publicKey)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt batch data: %w", err)
+		}
+		dataToSend = encryptedData
+		isEncrypted = true
+	}
+
 	url := fmt.Sprintf("%s/updates/", s.serverAddress)
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(compressedData))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(dataToSend))
 	if err != nil {
 		return fmt.Errorf("error: problem sending the metrics:%v", err)
 	}
+
+	if s.key != "" {
+		hash := utils.CalculateHMAC(dataToSend, s.key)
+		req.Header.Set("HashSHA256", hash)
+	}
+
+	// Add X-Real-IP header with the agent's IP address
+	if localIP := getLocalIP(); localIP != "" {
+		req.Header.Set("X-Real-IP", localIP)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	if isEncrypted {
+		req.Header.Set("Content-Encrypted", "rsa")
+	}
+	req.Header.Set("Content-Encoding", "gzip")
+
 	resp, err := s.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("error: problem sending the metrics:%v", err)
+	}
 	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			log.Printf("failed to close response body: %v", err)
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			log.Printf("failed to close response body: %v", closeErr)
 		}
 	}()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("error: problem with server code %v", err)
+		return fmt.Errorf("error: problem with server code %v", resp.StatusCode)
 	}
 
 	log.Printf("Successfully sent %d metrics in batch", len(metrics))
@@ -250,6 +362,11 @@ func (s *Sender) sendBatchUncompressed(data []byte) error {
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(data))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Add X-Real-IP header with the agent's IP address
+	if localIP := getLocalIP(); localIP != "" {
+		req.Header.Set("X-Real-IP", localIP)
 	}
 
 	req.Header.Set("Content-Type", "application/json")

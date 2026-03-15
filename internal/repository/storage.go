@@ -36,9 +36,9 @@ type Storage interface {
 
 // MemStorage реализует хранилище метрик в оперативной памяти.
 type MemStorage struct {
-	mu       sync.RWMutex
 	gauges   map[string]float64
 	counters map[string]int64
+	mu       sync.RWMutex
 }
 
 // NewMemStorage создает новое хранилище метрик в памяти.

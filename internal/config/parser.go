@@ -31,23 +31,30 @@ type ConfigParser struct {
 
 type agentFlags struct {
 	endpoint       string
+	grpcEndpoint   string
 	reportInterval string
 	pollInterval   string
 	retryIntervals string
 	key            string
+	cryptoKey      string
 	rateLimit      int
+	configFile     string
 }
 
 type serverFlags struct {
 	endpoint        string
+	grpcEndpoint    string
 	storeInterval   string
 	fileStoragePath string
 	restore         string
 	databaseDSN     string
 	retryIntervals  string
 	key             string
+	cryptoKey       string
 	auditFile       string
 	auditURL        string
+	trustedSubnet   string
+	configFile      string
 }
 
 func NewConfigParser() *ConfigParser {
@@ -97,13 +104,17 @@ func (p *ConfigParser) createRetryConfig(intervals []time.Duration) retry.RetryC
 
 func (p *ConfigParser) ParseAgentFlags(args []string) (*agentFlags, error) {
 	var flags agentFlags
-	fs := flag.NewFlagSet("agent", flag.PanicOnError)
-	fs.StringVar(&flags.endpoint, "a", p.defaults.Endpoint, "endpoint address")
-	fs.StringVar(&flags.reportInterval, "r", p.defaults.ReportInterval, "report interval (seconds)")
-	fs.StringVar(&flags.pollInterval, "p", p.defaults.PollInterval, "poll interval (seconds)")
-	fs.StringVar(&flags.retryIntervals, "retry-intervals", p.defaults.AgentRetryIntervals, "retry intervals in seconds, comma-separated (e.g., '1,3,5')")
-	fs.StringVar(&flags.key, "k", p.defaults.Key, "key for the hmac signature")
-	fs.IntVar(&flags.rateLimit, "l", 3, "rate-limit value")
+	fs := flag.NewFlagSet("agent", flag.ContinueOnError)
+	fs.StringVar(&flags.endpoint, "a", "", "endpoint address")
+	fs.StringVar(&flags.grpcEndpoint, "grpc", "", "gRPC server address (e.g., 'localhost:3200')")
+	fs.StringVar(&flags.reportInterval, "r", "", "report interval (seconds)")
+	fs.StringVar(&flags.pollInterval, "p", "", "poll interval (seconds)")
+	fs.StringVar(&flags.retryIntervals, "retry-intervals", "", "retry intervals in seconds, comma-separated (e.g., '1,3,5')")
+	fs.StringVar(&flags.key, "k", "", "key for the hmac signature")
+	fs.StringVar(&flags.cryptoKey, "crypto-key", "", "path to public key file for asymmetric encryption")
+	fs.IntVar(&flags.rateLimit, "l", 0, "rate-limit value")
+	fs.StringVar(&flags.configFile, "c", "", "path to JSON config file")
+	fs.StringVar(&flags.configFile, "config", "", "path to JSON config file")
 
 	if err := fs.Parse(args); err != nil {
 		return nil, err
@@ -114,16 +125,21 @@ func (p *ConfigParser) ParseAgentFlags(args []string) (*agentFlags, error) {
 
 func (p *ConfigParser) ParseServerFlags(args []string) (*serverFlags, error) {
 	var flags serverFlags
-	fs := flag.NewFlagSet("server", flag.PanicOnError)
-	fs.StringVar(&flags.endpoint, "a", p.defaults.Endpoint, "endpoint address")
-	fs.StringVar(&flags.storeInterval, "i", p.defaults.StoreInterval, "store interval (seconds)")
-	fs.StringVar(&flags.fileStoragePath, "f", p.defaults.FileStoragePath, "file storage path")
-	fs.StringVar(&flags.restore, "r", p.defaults.Restore, "restore from file (true/false)")
+	fs := flag.NewFlagSet("server", flag.ContinueOnError)
+	fs.StringVar(&flags.endpoint, "a", "", "endpoint address")
+	fs.StringVar(&flags.grpcEndpoint, "grpc", "", "gRPC server address (e.g., ':3200')")
+	fs.StringVar(&flags.storeInterval, "i", "", "store interval (seconds)")
+	fs.StringVar(&flags.fileStoragePath, "f", "", "file storage path")
+	fs.StringVar(&flags.restore, "r", "", "restore from file (true/false)")
 	fs.StringVar(&flags.databaseDSN, "d", "", "database DSN")
 	fs.StringVar(&flags.retryIntervals, "retry-intervals", "", "retry intervals in seconds, comma-separated (e.g., '2,4,8')")
-	fs.StringVar(&flags.key, "k", p.defaults.Key, "key for the hmac signature")
+	fs.StringVar(&flags.key, "k", "", "key for the hmac signature")
+	fs.StringVar(&flags.cryptoKey, "crypto-key", "", "path to private key file for asymmetric decryption")
 	fs.StringVar(&flags.auditFile, "audit-file", "", "audit file path")
 	fs.StringVar(&flags.auditURL, "audit-url", "", "audit URL")
+	fs.StringVar(&flags.trustedSubnet, "t", "", "trusted subnet in CIDR notation (e.g., '192.168.1.0/24')")
+	fs.StringVar(&flags.configFile, "c", "", "path to JSON config file")
+	fs.StringVar(&flags.configFile, "config", "", "path to JSON config file")
 	if err := fs.Parse(args); err != nil {
 		return nil, err
 	}
@@ -131,11 +147,16 @@ func (p *ConfigParser) ParseServerFlags(args []string) (*serverFlags, error) {
 }
 
 func (p *ConfigParser) MergeServerFlags(cfg *ServerConfig, flags *serverFlags) (*ServerConfig, error) {
-	var serverConfig ServerConfig
-	serverConfig.DBConfig = db.NewDefaultConfig() // ← Fixed! Initialize DBConfig
+	serverConfig := *cfg
+	if serverConfig.DBConfig == nil {
+		serverConfig.DBConfig = db.NewDefaultConfig()
+	}
 
 	if flags.endpoint != "" {
 		serverConfig.Endpoint = flags.endpoint
+	}
+	if flags.grpcEndpoint != "" {
+		serverConfig.GRPCEndpoint = flags.grpcEndpoint
 	}
 	if flags.storeInterval != "" {
 		serverConfig.StoreInterval = flags.storeInterval
@@ -143,7 +164,6 @@ func (p *ConfigParser) MergeServerFlags(cfg *ServerConfig, flags *serverFlags) (
 	}
 	if flags.restore != "" {
 		serverConfig.Restore = p.parseBoolWithDefault(flags.restore, true)
-
 	}
 	if flags.fileStoragePath != "" {
 		serverConfig.FileStoragePath = flags.fileStoragePath
@@ -161,19 +181,28 @@ func (p *ConfigParser) MergeServerFlags(cfg *ServerConfig, flags *serverFlags) (
 	if flags.key != "" {
 		serverConfig.Key = flags.key
 	}
+	if flags.cryptoKey != "" {
+		serverConfig.CryptoKey = flags.cryptoKey
+	}
 	if flags.auditFile != "" {
 		serverConfig.AuditFile = flags.auditFile
 	}
 	if flags.auditURL != "" {
 		serverConfig.AuditURL = flags.auditURL
 	}
+	if flags.trustedSubnet != "" {
+		serverConfig.TrustedSubnet = flags.trustedSubnet
+	}
 	return &serverConfig, nil
 }
 
 func (p *ConfigParser) MergeAgentFlags(cfg *AgentConfig, flags *agentFlags) (*AgentConfig, error) {
-	var agentConfig AgentConfig
+	agentConfig := *cfg
 	if flags.endpoint != "" {
 		agentConfig.Endpoint = flags.endpoint
+	}
+	if flags.grpcEndpoint != "" {
+		agentConfig.GRPCEndpoint = flags.grpcEndpoint
 	}
 	if flags.reportInterval != "" {
 		agentConfig.ReportInterval = p.parseDurationWithDefault(flags.reportInterval, 10)
@@ -189,6 +218,9 @@ func (p *ConfigParser) MergeAgentFlags(cfg *AgentConfig, flags *agentFlags) (*Ag
 	}
 	if flags.key != "" {
 		agentConfig.Key = flags.key
+	}
+	if flags.cryptoKey != "" {
+		agentConfig.CryptoKey = flags.cryptoKey
 	}
 	if flags.rateLimit > 0 {
 		agentConfig.Ratelimit = flags.rateLimit
@@ -215,6 +247,22 @@ func (p *ConfigParser) ParseAgentConfig() (*AgentConfig, error) {
 	if err != nil {
 		log.Fatalf("err: mistake while parsing flag:%v", err)
 	}
+
+	configFile := flags.configFile
+	if configFile == "" {
+		configFile = os.Getenv("CONFIG")
+	}
+
+	if configFile != "" {
+		jsonLoader := NewJSONConfigLoader()
+		jsonCfg, err := jsonLoader.LoadAgentJSONConfig(configFile)
+		if err != nil {
+			log.Printf("warning: failed to load JSON config from %s: %v", configFile, err)
+		} else {
+			jsonLoader.ApplyAgentJSONConfig(appConfig, jsonCfg)
+		}
+	}
+
 	agentConfig, err := p.MergeAgentFlags(appConfig, flags)
 	if err != nil {
 		log.Fatalf("err: problem merging flag and config: %v", err)
@@ -250,6 +298,21 @@ func (p *ConfigParser) ParseServerConfig() (*ServerConfig, error) {
 	flags, err := p.ParseServerFlags(os.Args[1:])
 	if err != nil {
 		log.Fatalf("err: mistake while parsing flag:%v", err)
+	}
+
+	configFile := flags.configFile
+	if configFile == "" {
+		configFile = os.Getenv("CONFIG")
+	}
+
+	if configFile != "" {
+		jsonLoader := NewJSONConfigLoader()
+		jsonCfg, err := jsonLoader.LoadServerJSONConfig(configFile)
+		if err != nil {
+			log.Printf("warning: failed to load JSON config from %s: %v", configFile, err)
+		} else {
+			jsonLoader.ApplyServerJSONConfig(config, jsonCfg)
+		}
 	}
 
 	serverConf, err := p.MergeServerFlags(config, flags)

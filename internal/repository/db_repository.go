@@ -166,7 +166,7 @@ func (r *DBRepository) UpdateBatch(metrics []models.Metrics) error {
 	defer func() {
 		if err != nil {
 			if rollbackErr := tx.Rollback(); rollbackErr != nil {
-				log.Printf("failed to rollback transaction: %v", err)
+				log.Printf("failed to rollback transaction: %v", rollbackErr)
 			}
 		}
 	}()
@@ -184,8 +184,8 @@ func (r *DBRepository) UpdateBatch(metrics []models.Metrics) error {
 		return fmt.Errorf("failed to prepare gauge statement: %w", err)
 	}
 	defer func() {
-		if err := gaugeStmt.Close(); err != nil {
-			log.Printf("error: problem closing gauge statement: %v", err)
+		if closeErr := gaugeStmt.Close(); closeErr != nil {
+			log.Printf("error: problem closing gauge statement: %v", closeErr)
 		}
 	}()
 
@@ -203,8 +203,8 @@ func (r *DBRepository) UpdateBatch(metrics []models.Metrics) error {
 		return fmt.Errorf("failed to prepare counter statement: %w", err)
 	}
 	defer func() {
-		if err := counterStatement.Close(); err != nil {
-			log.Printf("error: problem closing counter statement: %v", err)
+		if closeErr := counterStatement.Close(); closeErr != nil {
+			log.Printf("error: problem closing counter statement: %v", closeErr)
 		}
 	}()
 
@@ -212,14 +212,14 @@ func (r *DBRepository) UpdateBatch(metrics []models.Metrics) error {
 		switch metric.MType {
 		case models.Gauge:
 			if metric.Value != nil {
-				if _, err := gaugeStmt.Exec(metric.ID, models.Gauge, *metric.Value); err != nil {
-					return fmt.Errorf("failed to update gauge %s: %w", metric.ID, err)
+				if _, execErr := gaugeStmt.Exec(metric.ID, models.Gauge, *metric.Value); execErr != nil {
+					return fmt.Errorf("failed to update gauge %s: %w", metric.ID, execErr)
 				}
 			}
 		case models.Counter:
 			if metric.Delta != nil {
-				if _, err := counterStatement.Exec(metric.ID, models.Counter, *metric.Delta); err != nil {
-					return fmt.Errorf("failed to update counter %s: %w", metric.ID, err)
+				if _, execErr := counterStatement.Exec(metric.ID, models.Counter, *metric.Delta); execErr != nil {
+					return fmt.Errorf("failed to update counter %s: %w", metric.ID, execErr)
 				}
 			}
 		}

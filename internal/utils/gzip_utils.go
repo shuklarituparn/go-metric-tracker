@@ -15,8 +15,8 @@ func CompressedData(data []byte) ([]byte, error) {
 
 	_, err := gZipWriter.Write(data)
 	if err != nil {
-		if err := gZipWriter.Close(); err != nil {
-			return nil, fmt.Errorf("problem closing gzip:%s", err.Error())
+		if closeErr := gZipWriter.Close(); closeErr != nil {
+			return nil, fmt.Errorf("problem closing gzip:%s", closeErr.Error())
 		}
 		return nil, fmt.Errorf("problem writing data: %w", err)
 	}
@@ -41,8 +41,8 @@ func DecompressData(compressedData []byte) ([]byte, error) {
 	}
 
 	defer func() {
-		if err := gzReader.Close(); err != nil {
-			log.Printf("problem closing gzip: %v", err)
+		if closeErr := gzReader.Close(); closeErr != nil {
+			log.Printf("problem closing gzip: %v", closeErr)
 		}
 	}()
 

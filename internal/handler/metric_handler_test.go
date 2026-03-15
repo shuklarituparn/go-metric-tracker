@@ -64,11 +64,11 @@ func setupTestRouter(storage repository.Storage) *gin.Engine {
 
 func TestMetricsHandler_UpdateMetric(t *testing.T) {
 	tests := []struct {
+		checkValue     func(storage repository.Storage) bool
 		name           string
 		method         string
 		url            string
 		expectedStatus int
-		checkValue     func(storage repository.Storage) bool
 	}{
 		{
 			name:           "Correct gauge metric",
@@ -215,11 +215,11 @@ func TestMetricsHandler_UpdateMetric(t *testing.T) {
 
 func TestMetricsHandler_GetMetric(t *testing.T) {
 	tests := []struct {
-		name           string
 		setupMetrics   func(storage repository.Storage)
+		name           string
 		url            string
-		expectedStatus int
 		expectedBody   string
+		expectedStatus int
 	}{
 		{
 			name: "Get existing gauge metric",
@@ -372,8 +372,10 @@ func TestMetricsHandler_WithAudit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
+	if closeErr := tmpFile.Close(); closeErr != nil {
+		t.Fatalf("Failed to close temp file: %v", closeErr)
+	}
 
 	auditManager := audit.NewAuditManager()
 	fileAuditor, err := audit.NewFileAuditor(tmpFile.Name())
@@ -417,7 +419,7 @@ func TestMetricsHandler_WithAudit(t *testing.T) {
 	if len(auditEvent.Metrics) != 1 || auditEvent.Metrics[0] != "temperature" {
 		t.Errorf("Expected metric 'temperature', got %v", auditEvent.Metrics)
 	}
-	if auditEvent.IPAddress == "" {
+	if auditEvent.IPAddress.String() == "" {
 		t.Error("Expected IP address to be set")
 	}
 	if auditEvent.Timestamp == 0 {
@@ -446,8 +448,10 @@ func TestMetricsHandler_AuditJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
+	if closeErr := tmpFile.Close(); closeErr != nil {
+		t.Fatalf("Failed to close temp file: %v", closeErr)
+	}
 
 	auditManager := audit.NewAuditManager()
 	fileAuditor, err := audit.NewFileAuditor(tmpFile.Name())
